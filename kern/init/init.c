@@ -33,8 +33,7 @@ int kern_init(void) {
 
     intr_enable();  // enable irq interrupt
     
-    while (1)
-        ;
+    while (1) {}
 }
 
 void __attribute__((noinline))
