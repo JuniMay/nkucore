@@ -1,4 +1,3 @@
-// libs/sbi.c
 #include <sbi.h>
 #include <defs.h>
 
@@ -29,10 +28,19 @@ uint64_t sbi_call(uint64_t sbi_type, uint64_t arg0, uint64_t arg1, uint64_t arg2
     return ret_val;
 }
 
+int sbi_console_getchar(void) {
+    return sbi_call(SBI_CONSOLE_GETCHAR, 0, 0, 0);
+}
 void sbi_console_putchar(unsigned char ch) {
     sbi_call(SBI_CONSOLE_PUTCHAR, ch, 0, 0);
 }
 
 void sbi_set_timer(unsigned long long stime_value) {
     sbi_call(SBI_SET_TIMER, stime_value, 0, 0);
+}
+
+
+void sbi_shutdown(void)
+{
+    sbi_call(SBI_SHUTDOWN,0,0,0);
 }
