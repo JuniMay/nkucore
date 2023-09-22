@@ -45,10 +45,59 @@
 ### 内核启动中的程序入口操作
 
 1. `kern/init/entry.S` 中 `la sp, bootstacktop` 是将栈顶指针设置为 `bootstacktop`，由于 `bootstacktop` 与 `bootstack` 之间相隔 `KSTACKSIZE` 即内核栈大小，所以这一操作是为内核开辟栈空间，使内核操作过程中栈能够顺利从高地址向低地址生长。
-2. `tail kern_init` 中 `tail` 是一个伪代码，表示尾调用，此处即进入 `kern_init` 初始化函数，并且不设置 `ra` 这一返回地址寄存器。
+2. `tail kern_init` 中 `tail` 是一个伪代码，表示尾调用，此处即进入 `kern_init` 初始化函数，并且不设置 `ra` 这一返回地址寄存器。这条指令将控制权交给 `kern_init` 函数，且不会再返回到 `kern_entry` 中，因此不需要设置 `ra` 寄存器。
 
 ### 完善中断处理
 
-### RISCV 中断流程
+```c
+case IRQ_S_TIMER:
+   clock_set_next_event(); // 设置下一次时钟中断
+   ticks++; // 计数器加一
+   if (ticks == TICK_NUM) { // 每 100 个时钟中断输出一次
+         print_ticks(); // 打印 `100ticks`
+         num++; // 输出次数加一
+         if (num == 10) { // 输出 10 次后关机
+            sbi_shutdown(); // 关机
+         }
+         ticks = 0; // 重置计数器
+   }
+   break;
+```
 
-1. `move a0, sp` 表示将 `sp` 作为后面 `jal trap` 中 `trap` 函数的第一个参数。在 `SAVE_ALL` 中，已经将所有的寄存器保存到了 `sp` 开始的一个连续的内存栈空间中，所以 `sp` 的内容即为一个 `trapframe` 开头的地址，将 `sp` 传入 `trap` 函数即指定了 `tf` 这一参数。
+### 描述与理解中断流程
+
+1. 在内核初始化 `init.c` 中，调用了 `idt_init` 函数初始化中断描述符表，其中 `write_csr(stvec, &__alliraps)` 将中断处理的起始地址写入 `stvec` 寄存器。而`__alltraps` 在 `trapentry.S` 中定义。
+2. 当异常产生时，硬件会将 `stvec` 寄存器中的地址作为跳转地址，跳转到 `trapentry.S` 中的 `__alltraps` 处开始执行。首先进行 `SAVE_ALL`，将所有寄存器保存到栈中，并保存相关的 `trapframe` 结构体信息，跳转到 `trap` 函数中。
+3. `trap` 函数中，首先根据 `tf->cause` 判断异常类型，执行相应的异常处理函数。
+
+4. 其中 `move a0, sp` 表示将 `sp` 作为后面 `jal trap` 中 `trap` 函数的第一个参数。在 `SAVE_ALL` 中，已经将所有的寄存器保存到了 `sp` 开始的一个连续的内存栈空间中，所以 `sp` 的内容即为一个 `trapframe` 结构体开头的地址，将 `sp` 传入 `trap` 函数相当于指定了 `tf` 这一参数。
+
+5. SAVE_ALL中寄存器保存在栈中的位置是与 `pushregs` 结构体中定义的顺序相符合的，这样做可以在 C 语言中直接使用 `tf->xxx` 来访问保存在栈中的寄存器值。
+
+6. TODO：对于任何中断，`__alltraps` 中都需要保存所有寄存器吗？我不太确定怎么回答。
+
+### 理解上下文切换机制
+
+1. 在 `trapentry.S` 中，`csrw sscratch, sp` 将之前的栈指针保存在 sscratch 寄存器中，以便在处理完中断后恢复栈指针。
+
+2. `csrrw s0, sscratch, x0` 将 `sscratch` 寄存器的值（即之前的 `sp`）保存在 `s0` 中，同时将 `sscratch` 寄存器的值设置为 0，这样当嵌套中断发生时，中断处理能够知道中断来自内核，并且在处理完成后能够正确地恢复栈指针。
+
+3. `SAVE_ALL` 里面保存了 `sbadaddr` `scause` 这些 csr，而在 `RESTORE_ALL` 里面却不还原它们，是因为 `sbadaddr`（现在改名叫 `stval`）是用于保存一些与异常种类相关的异常信息（如 page fault 的地址，造成异常的指令地址等），来帮助解决异常处理，`scause` 是用于保存产生异常的原因（异常种类），而在异常处理完成后，这些信息已经没有用处了，所以不需要还原。
+
+### 完善异常中断
+```c
+case CAUSE_ILLEGAL_INSTRUCTION:
+   // 非法指令异常处理
+   cprintf("Exception type: Illegal instruction\n");
+   cprintf("Illegal instruction at 0x%016llx", tf->epc);
+   tf->epc += 4;
+   break;
+case CAUSE_BREAKPOINT:
+   // 断点异常处理
+   cprintf("Exception type: Breakpoint\n");
+   cprintf("Breakpoint at 0x%016llx", tf->epc);
+   tf->epc += 4;
+   break;
+   ```
+
+![illegal_inst](image.png)
