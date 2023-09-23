@@ -66,7 +66,7 @@ case IRQ_S_TIMER:
 
 ### 描述与理解中断流程
 
-1. 在内核初始化 `init.c` 中，调用了 `idt_init` 函数初始化中断描述符表，其中 `write_csr(stvec, &__alliraps)` 将中断处理的起始地址写入 `stvec` 寄存器。而`__alltraps` 在 `trapentry.S` 中定义。
+1. 在内核初始化 `init.c` 中，调用了 `idt_init` 函数初始化中断描述符表，其中 `write_csr(stvec, &__alltraps)` 将中断处理的起始地址写入 `stvec` 寄存器。而`__alltraps` 在 `trapentry.S` 中定义。
 2. 当异常产生时，硬件会将 `stvec` 寄存器中的地址作为跳转地址，跳转到 `trapentry.S` 中的 `__alltraps` 处开始执行。首先进行 `SAVE_ALL`，将所有寄存器保存到栈中，并保存相关的 `trapframe` 结构体信息，跳转到 `trap` 函数中。
 3. `trap` 函数中，首先根据 `tf->cause` 判断异常类型，执行相应的异常处理函数。
 
@@ -74,7 +74,7 @@ case IRQ_S_TIMER:
 
 5. SAVE_ALL中寄存器保存在栈中的位置是与 `pushregs` 结构体中定义的顺序相符合的，这样做可以在 C 语言中直接使用 `tf->xxx` 来访问保存在栈中的寄存器值。
 
-6. TODO：对于任何中断，`__alltraps` 中都需要保存所有寄存器吗？我不太确定怎么回答。
+6. `__alltraps` 并不需要保存所有寄存器，例如 `x0/zero` 这个寄存器的值永远为 0 而不需要保存和恢复。
 
 ### 理解上下文切换机制
 
@@ -82,9 +82,10 @@ case IRQ_S_TIMER:
 
 2. `csrrw s0, sscratch, x0` 将 `sscratch` 寄存器的值（即之前的 `sp`）保存在 `s0` 中，同时将 `sscratch` 寄存器的值设置为 0，这样当嵌套中断发生时，中断处理能够知道中断来自内核，并且在处理完成后能够正确地恢复栈指针。
 
-3. `SAVE_ALL` 里面保存了 `sbadaddr` `scause` 这些 csr，而在 `RESTORE_ALL` 里面却不还原它们，是因为 `sbadaddr`（现在改名叫 `stval`）是用于保存一些与异常种类相关的异常信息（如 page fault 的地址，造成异常的指令地址等），来帮助解决异常处理，`scause` 是用于保存产生异常的原因（异常种类），而在异常处理完成后，这些信息已经没有用处了，所以不需要还原。
+3. `SAVE_ALL` 里面保存了 `sbadaddr` `scause` 这些 csr，而在 `RESTORE_ALL` 里面却不还原它们，是因为 `sbadaddr`（现在改名叫 `stval`）是用于保存一些与异常种类相关的异常信息（如 page fault 的地址，造成异常的指令地址等），来帮助解决异常处理，`scause` 是用于保存产生异常的原因（异常种类），而在异常处理完成后，这些信息已经没有用处了，所以不需要还原。而 `sstatus` 和 `sepc` 在整个 trap 处理流程中都有可能会被使用，所以最后需要恢复。
 
 ### 完善异常中断
+
 ```c
 case CAUSE_ILLEGAL_INSTRUCTION:
    // 非法指令异常处理
@@ -98,6 +99,6 @@ case CAUSE_BREAKPOINT:
    cprintf("Breakpoint at 0x%016llx", tf->epc);
    tf->epc += 4;
    break;
-   ```
+```
 
-![illegal_inst](image.png)
+![illegal_inst](./report-lab1.assets/image.png)
