@@ -116,12 +116,12 @@ void interrupt_handler(struct trapframe *tf) {
             ticks++;
             if (ticks == TICK_NUM) {
                 print_ticks();
-                num++;
-                /*if (num == 3) {
+                /*num++;
+                if (num == 3) {
                     __asm__ volatile("mret");
-                } else*/ if (num == 10) {
+                } else if (num == 10) {
                     sbi_shutdown();
-                }
+                }*/
                 ticks = 0;
             }
             break;

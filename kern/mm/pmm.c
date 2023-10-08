@@ -97,13 +97,20 @@ static void page_init(void) {
         maxpa = KERNTOP;
     }
 
+    cprintf("maxpa: 0x%016lx\n", maxpa);
+
     extern char end[];
 
     npage = maxpa / PGSIZE;
+
+    cprintf("npage: 0x%x\n", npage);
+    cprintf("nbase: 0x%x\n", nbase);
+
     //kernel在end[]结束, pages是剩下的页的开始
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
 
     for (size_t i = 0; i < npage - nbase; i++) {
+        // cprintf("setting Page*: 0x%016lx\n", (uint64_t)(pages + i));
         SetPageReserved(pages + i);
     }
 
@@ -111,6 +118,13 @@ static void page_init(void) {
 
     mem_begin = ROUNDUP(freemem, PGSIZE);
     mem_end = ROUNDDOWN(mem_end, PGSIZE);
+
+    cprintf("kern_end:  0x%016lx\n", (uint64_t)PADDR(end));
+    cprintf("pages:     0x%016lx\n", (uint64_t)PADDR(pages));
+    cprintf("freemem:   0x%016lx\n", freemem);
+    cprintf("mem_begin: 0x%016lx\n", mem_begin);
+    cprintf("mem_end:   0x%016lx\n", mem_end);
+
     if (freemem < mem_end) {
         init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
     }
