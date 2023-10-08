@@ -17,7 +17,7 @@ int kern_init(void) {
     extern char edata[], end[];
     memset(edata, 0, end - edata);
     cons_init();  // init the console
-    const char *message = "(THU.CST) os is loading ...\0";
+    const char *message = "(NKU.osLoongTea) os is loading ...\0";
     //cprintf("%s\n\n", message);
     cputs(message);
 
@@ -31,9 +31,8 @@ int kern_init(void) {
     idt_init();  // init interrupt descriptor table
 
     clock_init();   // init clock interrupt
+    
     intr_enable();  // enable irq interrupt
-
-
 
     /* do nothing */
     while (1)
