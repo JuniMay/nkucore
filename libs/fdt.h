@@ -21,10 +21,9 @@
 /// Stored in big-endian format.
 ///
 /// +--------------------------+
-/// |    struct fid_header     |
+/// |    struct fdt_header     |
 /// +--------------------------+
-/// | memory reservation block | <-- Memory which are reserved. Offset shall be
-/// aligned to 8 bytes.
+/// | memory reservation block | <-- Memory which are reserved.
 /// +--------------------------+
 /// |      structure block     | <-- Structure and contents of the devicetree.
 /// +--------------------------+

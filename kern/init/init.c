@@ -56,7 +56,7 @@ int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
 
     // Walk through the flattend device tree and print it out.
     // Comment this to `make grade`.
-    // walk_print_device_tree(fdt_header);
+    walk_print_device_tree(fdt_header);
 
     // grade_backtrace();
     idt_init();  // init interrupt descriptor table
