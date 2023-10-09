@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-free_area_t free_area;
-
 #define free_list (free_area.free_list)
 #define nr_free (free_area.nr_free)
 
