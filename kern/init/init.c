@@ -15,10 +15,13 @@ void grade_backtrace(void);
 
 int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
     extern char edata[], end[];
+
     memset(edata, 0, end - edata);
-    cons_init();  // init the console
+
+    // initialize the console
+    cons_init();
+
     const char* message = "(NKU.osLoongTea) os is loading ...\0";
-    // cprintf("%s\n\n", message);
     cputs(message);
 
     print_kerninfo();
@@ -30,28 +33,30 @@ int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
     // here.
     fdt_header_t* fdt_header = (fdt_header_t*)(dtb_pa);
 
-    cprintf("fdt_magic:             0x%08x\n", le2be(fdt_header->magic));
-    cprintf("fdt_totalsize:         0x%08x\n", le2be(fdt_header->totalsize));
+    cprintf("fdt_magic:             0x%08x\n",
+            swicth_endian(fdt_header->magic));
+    cprintf("fdt_totalsize:         0x%08x\n",
+            swicth_endian(fdt_header->totalsize));
     cprintf("fdt_off_dt_struct:     0x%08x\n",
-            le2be(fdt_header->off_dt_struct));
+            swicth_endian(fdt_header->off_dt_struct));
     cprintf("fdt_off_dt_strings:    0x%08x\n",
-            le2be(fdt_header->off_dt_strings));
+            swicth_endian(fdt_header->off_dt_strings));
     cprintf("fdt_off_mem_rsvmap:    0x%08x\n",
-            le2be(fdt_header->off_mem_rsvmap));
-    cprintf("fdt_version:           0x%08x\n", le2be(fdt_header->version));
+            swicth_endian(fdt_header->off_mem_rsvmap));
+    cprintf("fdt_version:           0x%08x\n",
+            swicth_endian(fdt_header->version));
     cprintf("fdt_last_comp_version: 0x%08x\n",
-            le2be(fdt_header->last_comp_version));
+            swicth_endian(fdt_header->last_comp_version));
     cprintf("fdt_boot_cpuid_phys:   0x%08x\n",
-            le2be(fdt_header->boot_cpuid_phys));
+            swicth_endian(fdt_header->boot_cpuid_phys));
     cprintf("fdt_size_dt_strings:   0x%08x\n",
-            le2be(fdt_header->size_dt_strings));
+            swicth_endian(fdt_header->size_dt_strings));
     cprintf("fdt_size_dt_struct:    0x%08x\n",
-            le2be(fdt_header->size_dt_struct));
+            swicth_endian(fdt_header->size_dt_struct));
 
     // Walk through the flattend device tree and print it out.
+    // Comment this to `make grade`.
     // walk_print_device_tree(fdt_header);
-
-    cprintf("\n");
 
     // grade_backtrace();
     idt_init();  // init interrupt descriptor table

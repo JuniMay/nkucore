@@ -13,8 +13,10 @@
 #ifndef __LIBS_FDT_H__
 #define __LIBS_FDT_H__
 
+#include <assert.h>
 #include <defs.h>
 #include <stdio.h>
+#include <string.h>
 
 /// Stored in big-endian format.
 ///
@@ -67,10 +69,13 @@ typedef struct {
 
 /// A beginning of a node's representation.
 #define FDT_BEGIN_NODE 0x01000000
+
 /// An end of a node's representation.
 #define FDT_END_NODE 0x02000000
+
 /// Mark the beginning of the representation of one property in the devicetree.
 #define FDT_PROP 0x03000000
+
 /// Property data following the property marker.
 typedef struct {
     /// Length of the property value in bytes.
@@ -78,27 +83,36 @@ typedef struct {
     /// Offset into the strings block for the property name.
     uint32_t nameoff;
 } fdt_prop_data_t;
+
 /// No extra data.
 #define FDT_NOP 0x04000000
+
 /// The end of the structure block.
 #define FDT_END 0x09000000
 
+/// Walk through the device tree and print.
 void walk_print_device_tree(fdt_header_t* fdt_header);
 
-uint32_t le2be(uint32_t val) {
+/// Change the endianness of a 32-bit integer.
+uint32_t swicth_endian(uint32_t val) {
     return ((val & 0xff000000) >> 24) | ((val & 0x00ff0000) >> 8) |
            ((val & 0x0000ff00) << 8) | ((val & 0x000000ff) << 24);
+}
+
+void print_indent(size_t indent) {
+    for (size_t i = 0; i < indent; i++) cprintf("  ");
 }
 
 void walk_print_device_tree(fdt_header_t* fdt_header) {
     // Big-endian magic number check. 0xd00dfeed
     assert(fdt_header->magic == 0xedfe0dd0);
 
-    uint64_t fdt_end_addr = (uint64_t)fdt_header + le2be(fdt_header->totalsize);
+    uint64_t fdt_end_addr =
+        (uint64_t)fdt_header + swicth_endian(fdt_header->totalsize);
     uint64_t structure_block_addr =
-        (uint64_t)fdt_header + le2be(fdt_header->off_dt_struct);
+        (uint64_t)fdt_header + swicth_endian(fdt_header->off_dt_struct);
     uint64_t strings_block_addr =
-        (uint64_t)fdt_header + le2be(fdt_header->off_dt_strings);
+        (uint64_t)fdt_header + swicth_endian(fdt_header->off_dt_strings);
 
     size_t node_depth = 0;
 
@@ -113,20 +127,25 @@ void walk_print_device_tree(fdt_header_t* fdt_header) {
                 break;
             }
             case FDT_BEGIN_NODE: {
-                cputs("\n");
                 p++;
+                print_indent(node_depth);
                 node_depth++;
-                for (size_t i = 0; i < node_depth; i++) {
-                    cprintf("  ");
+
+                if (strlen((char*)p) == 0) {
+                    cprintf("devicetree {\n");
+                } else {
+                    cprintf("%s {\n", (char*)p);
                 }
 
-                cprintf("%s\n", (char*)p);
                 p += strlen((char*)p) / sizeof(uint32_t) + 1;
+
                 break;
             }
             case FDT_END_NODE: {
                 p++;
                 node_depth--;
+                print_indent(node_depth);
+                cprintf("}\n");
                 break;
             }
             case FDT_PROP: {
@@ -134,22 +153,22 @@ void walk_print_device_tree(fdt_header_t* fdt_header) {
                 fdt_prop_data_t* prop_data = (fdt_prop_data_t*)p;
                 p += sizeof(fdt_prop_data_t) / sizeof(uint32_t);
 
-                for (size_t i = 0; i <= node_depth; i++) {
-                    cprintf("  ");
-                }
+                print_indent(node_depth);
 
                 cprintf("%s: ", (char*)(strings_block_addr +
-                                        le2be(prop_data->nameoff)));
+                                        swicth_endian(prop_data->nameoff)));
 
                 uint8_t* prop_value = (uint8_t*)p;
 
-                for (size_t i = 0; i < le2be(prop_data->len); i++) {
+                for (size_t i = 0; i < swicth_endian(prop_data->len); i++) {
                     uint8_t c = prop_value[i];
-                    cprintf("%02x ", c);
+                    cprintf("%02x", c);
+
+                    if (i % 4 == 3) cprintf(" ");
                 }
 
-                // Find the next 4-byte aligned address.
-                p += (le2be(prop_data->len) + 3) / sizeof(uint32_t);
+                // find next 4-byte aligned address.
+                p += (swicth_endian(prop_data->len) + 3) / sizeof(uint32_t);
 
                 cprintf("\n");
 
@@ -160,16 +179,14 @@ void walk_print_device_tree(fdt_header_t* fdt_header) {
             }
             default: {
                 cprintf("unknown marker: 0x%08x\n", marker);
+                assert(0);
                 return;
             }
         }
-        if (node_depth == 0) {
-            return;
-        }
 
-        if ((uint64_t)p >= fdt_end_addr) {
-            return;
-        }
+        if (node_depth == 0) return;
+
+        if ((uint64_t)p >= fdt_end_addr) return;
     }
 }
 
