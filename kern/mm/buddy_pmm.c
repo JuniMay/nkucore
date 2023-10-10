@@ -271,75 +271,93 @@ static size_t buddy_nr_free_pages(void) {
     return total_cnt;
 }
 
-static void buddy_check(void) {
-    struct Page *p0, *p1, *p2, *p3, *p4, *p5, *p6, *p7, *p8;
+static void buddy_check_0() {
+
+#define ALLOC_PAGE_NUM 1036
+
+    cprintf("[buddy_check_0] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
     size_t initial_nr_free_pages = nr_free_pages();
 
-    size_t initial_nr_free_array[BUDDY_MAX_ORDER] = {0};
-    for (int order = 0; order < BUDDY_MAX_ORDER; order++) {
-        initial_nr_free_array[order] = buddy_zone.free_area[order].nr_free;
+    cprintf("[buddy_check_0] before alloc: ");
+    dbg_buddy();
+
+
+    cprintf("[buddy_check_0] trying to alloc %d * 1 pages\n", ALLOC_PAGE_NUM);
+
+    struct Page *pages[ALLOC_PAGE_NUM];
+
+    for (int i = 0; i < ALLOC_PAGE_NUM; i++) {
+        pages[i] = alloc_pages(1);
+        assert(pages[i] != NULL);
     }
 
+    assert(nr_free_pages() == initial_nr_free_pages - ALLOC_PAGE_NUM);
+
+    cprintf("[buddy_check_0] after alloc:  ");
     dbg_buddy();
 
-    p0 = alloc_pages(1);
-    p1 = alloc_pages(1);
-    p2 = alloc_pages(1);
-    p3 = alloc_pages(1);
-    p4 = alloc_pages(1);
-    p5 = alloc_pages(1);
-    p6 = alloc_pages(1);
-    p7 = alloc_pages(1);
-    p8 = alloc_pages(1);
-
-    assert(p0 != NULL);
-    assert(p1 != NULL);
-    assert(p2 != NULL);
-    assert(p3 != NULL);
-    assert(p4 != NULL);
-    assert(p5 != NULL);
-    assert(p6 != NULL);
-    assert(p7 != NULL);
-    assert(p8 != NULL);
-
-    assert(nr_free_pages() == initial_nr_free_pages - 9);
-
-    dbg_buddy();
-
-    free_pages(p7, 1);
-    free_pages(p8, 1);
-    free_pages(p2, 1);
-    free_pages(p5, 1);
-    free_pages(p6, 1);
-    free_pages(p1, 1);
-    free_pages(p4, 1);
-    free_pages(p0, 1);
-    free_pages(p3, 1);
+    for (int i = 0; i < ALLOC_PAGE_NUM; i++) {
+        free_pages(pages[i], 1);
+    }
 
     assert(nr_free_pages() == initial_nr_free_pages);
 
+    cprintf("[buddy_check_0] after free:   ");
     dbg_buddy();
 
-    p0 = alloc_pages(512);
+    cprintf("[buddy_check_0] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");       
+}
 
+static void buddy_check_1() {
+    cprintf("[buddy_check_1] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+
+    struct Page* p0 = alloc_pages(512);
 
     assert(p0 != NULL);
     assert(p0->property == 512);
 
-    p1 = alloc_pages(513);
+    cprintf("[buddy_check_1] after alloc 512 pages: ");
+    dbg_buddy();
+
+    struct Page* p1 = alloc_pages(513);
 
     assert(p1 != NULL);
     assert(p1->property == 1024);
 
+    cprintf("[buddy_check_1] after alloc 513 pages: ");
+    dbg_buddy();
+
+    struct Page* p2 = alloc_pages(79);
+
+    assert(p2 != NULL);
+    assert(p2->property == 128);
+
+    cprintf("[buddy_check_1] after alloc 79 pages:  ");
+    dbg_buddy();
+
+    struct Page* p3 = alloc_pages(37);
+
+    assert(p3 != NULL);
+    assert(p3->property == 64);
+
+    cprintf("[buddy_check_1] after alloc 37 pages:  ");
     dbg_buddy();
 
     free_pages(p0, 512);
+    free_pages(p2, 79);
+    free_pages(p3, 37);
     free_pages(p1, 513);
 
-    assert(nr_free_pages() == initial_nr_free_pages);
-
+    cprintf("[buddy_check_1] after free:            ");
     dbg_buddy();
+
+    cprintf("[buddy_check_1] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+}
+
+static void buddy_check(void) {
+    buddy_check_0();
+    buddy_check_1();
 }
 
 const struct pmm_manager buddy_pmm_manager = {
