@@ -1,15 +1,28 @@
-#include <default_pmm.h>
-#include <best_fit_pmm.h>
+
+#include <../sync/sync.h>
 #include <defs.h>
 #include <error.h>
 #include <memlayout.h>
 #include <mmu.h>
 #include <pmm.h>
+#include <riscv.h>
 #include <sbi.h>
 #include <stdio.h>
 #include <string.h>
-#include <../sync/sync.h>
-#include <riscv.h>
+
+#define PMM_FIRST_FIT 0
+#define PMM_BEST_FIT 1
+#define PMM_BUDDY_SYSTEM 2
+
+#define PMM_MANAGER PMM_BUDDY_SYSTEM
+
+#if PMM_MANAGER == PMM_FIRST_FIT
+#include <first_fit_pmm.h>
+#elif PMM_MANAGER == PMM_BEST_FIT
+#include <best_fit_pmm.h>
+#elif PMM_MANAGER == PMM_BUDDY_SYSTEM
+#include <buddy_pmm.h>
+#endif
 
 // virtual address of physical page array
 struct Page *pages;
@@ -26,15 +39,28 @@ uintptr_t *satp_virtual = NULL;
 // physical address of boot-time page directory
 uintptr_t satp_physical;
 
+#if PMM_MANAGER == PMM_BEST_FIT || PMM_MANAGER == PMM_FIRST_FIT
+free_area_t free_area;
+#elif PMM_MANAGER == PMM_BUDDY_SYSTEM
+buddy_zone_t buddy_zone;
+#endif
+
 // physical memory management
 const struct pmm_manager *pmm_manager;
-
 
 static void check_alloc_page(void);
 
 // init_pmm_manager - initialize a pmm_manager instance
 static void init_pmm_manager(void) {
+
+#if PMM_MANAGER == PMM_FIRST_FIT
+    pmm_manager = &first_fit_pmm_manager;
+#elif PMM_MANAGER == PMM_BEST_FIT
     pmm_manager = &best_fit_pmm_manager;
+#elif PMM_MANAGER == PMM_BUDDY_SYSTEM
+    pmm_manager = &buddy_pmm_manager;
+#endif
+
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
@@ -50,9 +76,7 @@ struct Page *alloc_pages(size_t n) {
     struct Page *page = NULL;
     bool intr_flag;
     local_intr_save(intr_flag);
-    {
-        page = pmm_manager->alloc_pages(n);
-    }
+    { page = pmm_manager->alloc_pages(n); }
     local_intr_restore(intr_flag);
     return page;
 }
@@ -61,9 +85,7 @@ struct Page *alloc_pages(size_t n) {
 void free_pages(struct Page *base, size_t n) {
     bool intr_flag;
     local_intr_save(intr_flag);
-    {
-        pmm_manager->free_pages(base, n);
-    }
+    { pmm_manager->free_pages(base, n); }
     local_intr_restore(intr_flag);
 }
 
@@ -73,9 +95,7 @@ size_t nr_free_pages(void) {
     size_t ret;
     bool intr_flag;
     local_intr_save(intr_flag);
-    {
-        ret = pmm_manager->nr_free_pages();
-    }
+    { ret = pmm_manager->nr_free_pages(); }
     local_intr_restore(intr_flag);
     return ret;
 }
@@ -85,7 +105,8 @@ static void page_init(void) {
 
     uint64_t mem_begin = KERNEL_BEGIN_PADDR;
     uint64_t mem_size = PHYSICAL_MEMORY_END - KERNEL_BEGIN_PADDR;
-    uint64_t mem_end = PHYSICAL_MEMORY_END; //硬编码取代 sbi_query_memory()接口
+    uint64_t mem_end = PHYSICAL_MEMORY_END;  // 硬编码取代
+                                             // sbi_query_memory()接口
 
     cprintf("physcial memory map:\n");
     cprintf("  memory: 0x%016lx, [0x%016lx, 0x%016lx].\n", mem_size, mem_begin,
@@ -106,7 +127,7 @@ static void page_init(void) {
     cprintf("npage: 0x%x\n", npage);
     cprintf("nbase: 0x%x\n", nbase);
 
-    //kernel在end[]结束, pages是剩下的页的开始
+    // kernel在end[]结束, pages是剩下的页的开始
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
 
     for (size_t i = 0; i < npage - nbase; i++) {
@@ -114,7 +135,8 @@ static void page_init(void) {
         SetPageReserved(pages + i);
     }
 
-    uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
+    uintptr_t freemem =
+        PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
 
     mem_begin = ROUNDUP(freemem, PGSIZE);
     mem_end = ROUNDDOWN(mem_end, PGSIZE);
@@ -132,24 +154,26 @@ static void page_init(void) {
 
 /* pmm_init - initialize the physical memory management */
 void pmm_init(void) {
-    // We need to alloc/free the physical memory (granularity is 4KB or other size).
-    // So a framework of physical memory manager (struct pmm_manager)is defined in pmm.h
-    // First we should init a physical memory manager(pmm) based on the framework.
-    // Then pmm can alloc/free the physical memory.
-    // Now the first_fit/best_fit/worst_fit/buddy_system pmm are available.
+    // We need to alloc/free the physical memory (granularity is 4KB or other
+    // size). So a framework of physical memory manager (struct pmm_manager)is
+    // defined in pmm.h First we should init a physical memory manager(pmm)
+    // based on the framework. Then pmm can alloc/free the physical memory. Now
+    // the first_fit/best_fit/worst_fit/buddy_system pmm are available.
     init_pmm_manager();
 
     // detect physical memory space, reserve already used memory,
     // then use pmm->init_memmap to create free page list
     page_init();
 
-    // use pmm->check to verify the correctness of the alloc/free function in a pmm
+    // use pmm->check to verify the correctness of the alloc/free function in a
+    // pmm
     check_alloc_page();
 
     extern char boot_page_table_sv39[];
-    satp_virtual = (pte_t*)boot_page_table_sv39;
+    satp_virtual = (pte_t *)boot_page_table_sv39;
     satp_physical = PADDR(satp_virtual);
-    cprintf("satp virtual address: 0x%016lx\nsatp physical address: 0x%016lx\n", satp_virtual, satp_physical);
+    cprintf("satp virtual address: 0x%016lx\nsatp physical address: 0x%016lx\n",
+            satp_virtual, satp_physical);
 }
 
 static void check_alloc_page(void) {
