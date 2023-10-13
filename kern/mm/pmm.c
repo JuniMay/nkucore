@@ -13,8 +13,9 @@
 #define PMM_FIRST_FIT 0
 #define PMM_BEST_FIT 1
 #define PMM_BUDDY_SYSTEM 2
+#define PMM_SLOB_ALLOCATOR 3
 
-#define PMM_MANAGER PMM_BUDDY_SYSTEM
+#define PMM_MANAGER PMM_SLOB_ALLOCATOR
 
 #if PMM_MANAGER == PMM_FIRST_FIT
 #include <first_fit_pmm.h>
@@ -22,6 +23,9 @@
 #include <best_fit_pmm.h>
 #elif PMM_MANAGER == PMM_BUDDY_SYSTEM
 #include <buddy_pmm.h>
+#elif PMM_MANAGER == PMM_SLOB_ALLOCATOR
+#include <buddy_pmm.h>
+#include <slob_pmm.h>
 #endif
 
 // virtual address of physical page array
@@ -43,6 +47,9 @@ uintptr_t satp_physical;
 free_area_t free_area;
 #elif PMM_MANAGER == PMM_BUDDY_SYSTEM
 buddy_zone_t buddy_zone;
+#elif PMM_MANAGER == PMM_SLOB_ALLOCATOR
+buddy_zone_t buddy_zone;
+slob_manager_t slob_manager;
 #endif
 
 // physical memory management
@@ -59,6 +66,8 @@ static void init_pmm_manager(void) {
     pmm_manager = &best_fit_pmm_manager;
 #elif PMM_MANAGER == PMM_BUDDY_SYSTEM
     pmm_manager = &buddy_pmm_manager;
+#elif PMM_MANAGER == PMM_SLOB_ALLOCATOR
+    pmm_manager = &slob_pmm_manager;
 #endif
 
     cprintf("memory management: %s\n", pmm_manager->name);
@@ -98,6 +107,22 @@ size_t nr_free_pages(void) {
     { ret = pmm_manager->nr_free_pages(); }
     local_intr_restore(intr_flag);
     return ret;
+}
+
+void *alloc_bytes(size_t n) {
+    void *ret = NULL;
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    { ret = pmm_manager->alloc_bytes(n); }
+    local_intr_restore(intr_flag);
+    return ret;
+}
+
+void free_bytes(void *ptr, size_t n) {
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    { pmm_manager->free_bytes(ptr, n); }
+    local_intr_restore(intr_flag);
 }
 
 static void page_init(void) {

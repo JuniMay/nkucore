@@ -29,6 +29,10 @@ struct pmm_manager {
                                                       // descriptor
                                                       // structures(memlayout.h)
     size_t (*nr_free_pages)(void);  // return the number of free pages
+    void *(*alloc_bytes)(size_t n); // allocate >=n bytes, depend on the
+                                    // allocation algorithm
+    void (*free_bytes)(void *ptr, size_t n); // free >=n bytes with "ptr" addr
+                                             // of memory start
     void (*check)(void);            // check the correctness of XXX_pmm_manager
 };
 
@@ -39,6 +43,11 @@ void pmm_init(void);
 struct Page *alloc_pages(size_t n);
 void free_pages(struct Page *base, size_t n);
 size_t nr_free_pages(void); // number of free pages
+
+// byte level memory allocation/free
+void *alloc_bytes(size_t n); // alloc n byte memory
+void free_bytes(void *ptr, size_t n); // free n byte memory
+
 
 #define alloc_page() alloc_pages(1)
 #define free_page(page) free_pages(page, 1)

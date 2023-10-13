@@ -37,6 +37,11 @@ struct Page {
     uint64_t flags;                 // array of flags that describe the status of the page frame
     unsigned int property;          // the num of free block, used in first fit pm manager
     list_entry_t page_link;         // free list link
+#if PMM_MANAGER == PMM_SLOB_ALLOCATOR
+    void *virtual;                  // virtual address, used in slob
+    uint32_t slob_units_left;       // # of slob units left in this page
+    list_entry_t slob_link;         // slob free list link
+#endif
 };
 
 /* Flags describing the status of a page frame */
