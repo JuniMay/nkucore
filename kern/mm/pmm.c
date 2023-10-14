@@ -15,10 +15,10 @@
 #define PMM_BUDDY_SYSTEM 2
 #define PMM_SLOB_ALLOCATOR 3
 
-#define PMM_MANAGER PMM_SLOB_ALLOCATOR
+#define PMM_MANAGER PMM_FIRST_FIT
 
 #if PMM_MANAGER == PMM_FIRST_FIT
-#include <first_fit_pmm.h>
+#include <default_pmm.h>
 #elif PMM_MANAGER == PMM_BEST_FIT
 #include <best_fit_pmm.h>
 #elif PMM_MANAGER == PMM_BUDDY_SYSTEM
@@ -61,7 +61,7 @@ static void check_alloc_page(void);
 static void init_pmm_manager(void) {
 
 #if PMM_MANAGER == PMM_FIRST_FIT
-    pmm_manager = &first_fit_pmm_manager;
+    pmm_manager = &default_pmm_manager;
 #elif PMM_MANAGER == PMM_BEST_FIT
     pmm_manager = &best_fit_pmm_manager;
 #elif PMM_MANAGER == PMM_BUDDY_SYSTEM
