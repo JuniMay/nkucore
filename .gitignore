@@ -3,3 +3,5 @@ obj/
 .vscode/
 
 .DS_Store
+.gdb.in
+.qemu.out

@@ -25,7 +25,9 @@ make_print() {
     echo `$make $makeopts print-$1`
 }
 
+echo ">>>>>>>>>> here_make>>>>>>>>>>>"
 echo `$make`
+echo ">>>>>>>>>> here_make>>>>>>>>>>>"
 
 ## command tools
 awk='awk'
@@ -49,12 +51,11 @@ qemu="$(make_print qemu)"
 
 qemu_out="$(make_print GRADE_QEMU_OUT)"
 
-#if $qemu -nographic -help | grep -q '^-gdb'; then
-#    qemugdb="-gdb tcp::$gdbport"
-#else
- #   qemugdb="-s -p $gdbport"
-#fi
-qemugdb=""
+if $qemu -nographic -help | grep -q '^-gdb'; then
+    qemugdb="-gdb tcp::$gdbport"
+else
+    qemugdb="-s -p $gdbport"
+fi
 
 ## default variables
 default_timeout=30
@@ -132,7 +133,7 @@ run_qemu() {
     # wait until $brkfun is reached or $timeout expires, then kill QEMU
     qemuextra=
     if [ "$brkfun" ]; then
-        qemuextra=" $qemugdb"
+        qemuextra="-S $qemugdb"
     fi
 
     if [ -z "$timeout" ] || [ $timeout -le 0 ]; then
@@ -323,24 +324,23 @@ osimg=$(make_print ucoreimg)
 swapimg=$(make_print swapimg)
 
 ## set default qemu-options
-# qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
+# qemuopts="-hda $osimg"
 qemuopts="-machine virt -nographic -bios default -device loader,file=bin/ucore.img,addr=0x80200000"
-
 ## set break-function, default is readline
 brkfun=readline
 
 ## check now!!
 
-# quick_run 'Check VMM'
+# quick_run 'Check PMM'
 
-# pts=5
+# pts=20
 # quick_check 'check pmm'                                         \
-#     'memory management: default_pmm_manager'                      \
+#     'memory management: default_pmm_manager'                     \
 #     'check_alloc_page() succeeded!'                             \
 #     'check_pgdir() succeeded!'                                  \
 #     'check_boot_pgdir() succeeded!'
 
-# pts=5
+# pts=20
 # quick_check 'check page table'                                  \
 #     'PDE(0e0) c0000000-f8000000 38000000 urw'                   \
 #     '  |-- PTE(38000) c0000000-f8000000 38000000 -rw'           \
@@ -348,54 +348,32 @@ brkfun=readline
 #     '  |-- PTE(000e0) faf00000-fafe0000 000e0000 urw'           \
 #     '  |-- PTE(00001) fafeb000-fafec000 00001000 -rw'
 
-# pts=25
-# quick_check 'check vmm'                                         \
-#     'check_vma_struct() succeeded!'                             \
-#     'page fault at 0x00000100: K/W [no page found].'            \
-#     'check_pgfault() succeeded!'                                \
-#     'check_vmm() succeeded.'
-
-# pts=20
-# quick_check 'check swap page fault'                             \
-#     'page fault at 0x00001000: K/W [no page found].'            \
-#     'page fault at 0x00002000: K/W [no page found].'            \
-#     'page fault at 0x00003000: K/W [no page found].'            \
-#     'page fault at 0x00004000: K/W [no page found].'            \
-#     'write Virt Page e in fifo_check_swap'			\
-#     'page fault at 0x00005000: K/W [no page found].'		\
-#     'page fault at 0x00001000: K/W [no page found]'		\
-#     'page fault at 0x00002000: K/W [no page found].'		\
-#     'page fault at 0x00003000: K/W [no page found].'		\
-#     'page fault at 0x00004000: K/W [no page found].'		\
-#     'check_swap() succeeded!'
-
-# pts=5
+# pts=10
 # quick_check 'check ticks'                                       \
-#     '++ setup timer interrupts'
+#     '++ setup timer interrupts'                                 \
+#     '100 ticks'                                                 \
+#     'End of Test.'
 
-
+echo "<<<<<<<<<<<<<<< here_run_qemu <<<<<<<<<<<<<<<<<<"
 run_qemu
+echo "<<<<<<<<<<<<<<< here_run_check <<<<<<<<<<<<<<<<<<"
 
+pts=5
+quick_check 'check physical_memory_map_information'                                         \
+    'memory management: best_fit_pmm_manager'                     \
+    '  memory: 0x0000000007e00000, [0x0000000080200000, 0x0000000087ffffff].'                                  \
 
-#pts=30
-#quick_check 'Exception type: breakpoint'                     \
-#    'ebreak caught at 0x000000008020004e'                                    
+pts=20
+quick_check 'check_best_fit'                                       \
+    'check_alloc_page() succeeded!'                                  \
+    'satp virtual address: 0xffffffffc0205000'                       \
+    'satp physical address: 0x0000000080205000'                      \
 
-#pts=30
-#quick_check 'Exception type: Illegal instruction'                     \
-#    'Illegal instruction caught at 0x0000000080200050'      
+pts=5
+quick_check 'check ticks'                                       \
+    '++ setup timer interrupts'                                 \
+    '100 ticks'                                                 \
 
-pts=100
-quick_check '100 ticks'     \
-'100 ticks'                         \
-'100 ticks'                         \
-'100 ticks'                          \
-'100 ticks'                         \
-'100 ticks'                        \
-'100 ticks'                         \
-'100 ticks'                         \
-'100 ticks'                         \
-'100 ticks'                           \
 ## print final-score
 show_final
 

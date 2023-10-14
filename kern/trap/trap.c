@@ -117,9 +117,9 @@ void interrupt_handler(struct trapframe *tf) {
             if (ticks == TICK_NUM) {
                 print_ticks();
                 num++;
-                /*if (num == 3) {
+                if (num == 3) {
                     __asm__ volatile("mret");
-                } else*/ if (num == 10) {
+                } else if (num == 10) {
                     sbi_shutdown();
                 }
                 ticks = 0;
@@ -163,7 +163,7 @@ void exception_handler(struct trapframe *tf) {
              *(3)更新 tf->epc寄存器
              */
             cprintf("Exception type: Illegal instruction\n");
-            cprintf("Illegal instruction at 0x%016llx", tf->epc);
+            cprintf("Illegal instruction at 0x%016llx\n", tf->epc);
             tf->epc += 4;
             break;
         case CAUSE_BREAKPOINT:
@@ -174,7 +174,7 @@ void exception_handler(struct trapframe *tf) {
              *(3)更新 tf->epc寄存器
              */
             cprintf("Exception type: Breakpoint\n");
-            cprintf("Breakpoint at 0x%016llx", tf->epc);
+            cprintf("Breakpoint at 0x%016llx\n", tf->epc);
             tf->epc += 4;
             break;
         case CAUSE_MISALIGNED_LOAD:

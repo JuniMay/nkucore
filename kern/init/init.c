@@ -1,60 +1,102 @@
 #include <clock.h>
 #include <console.h>
 #include <defs.h>
+#include <fdt.h>
 #include <intr.h>
 #include <kdebug.h>
 #include <kmonitor.h>
 #include <pmm.h>
-#include <riscv.h>
 #include <stdio.h>
 #include <string.h>
 #include <trap.h>
 
-int kern_init(void) __attribute__((noreturn));
+int kern_init(uint32_t hartid, uintptr_t dtb_pa) __attribute__((noreturn));
 void grade_backtrace(void);
 
-int kern_init(void) {
+extern char boot_page_table_sv39[];
+
+int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
     extern char edata[], end[];
+
     memset(edata, 0, end - edata);
 
-    cons_init();  // init the console
+    // initialize the console
+    cons_init();
 
-    const char *message = "(THU.CST) os is loading ...\n";
-    cprintf("%s\n\n", message);
+    const char* message = "(NKU.osLoongTea) os is loading ...\0";
+    cputs(message);
 
     print_kerninfo();
 
+    cprintf("hartid: %d\n", hartid);
+    cprintf("dtb_pa: 0x%016lx\n", dtb_pa);
+
+    // 0x80000000 is still mapped to itself, so just use the physical address
+    // here.
+    fdt_header_t* fdt_header = (fdt_header_t*)(dtb_pa);
+
+    cprintf("fdt_magic:             0x%08x\n",
+            swicth_endian(fdt_header->magic));
+    cprintf("fdt_totalsize:         0x%08x\n",
+            swicth_endian(fdt_header->totalsize));
+    cprintf("fdt_off_dt_struct:     0x%08x\n",
+            swicth_endian(fdt_header->off_dt_struct));
+    cprintf("fdt_off_dt_strings:    0x%08x\n",
+            swicth_endian(fdt_header->off_dt_strings));
+    cprintf("fdt_off_mem_rsvmap:    0x%08x\n",
+            swicth_endian(fdt_header->off_mem_rsvmap));
+    cprintf("fdt_version:           0x%08x\n",
+            swicth_endian(fdt_header->version));
+    cprintf("fdt_last_comp_version: 0x%08x\n",
+            swicth_endian(fdt_header->last_comp_version));
+    cprintf("fdt_boot_cpuid_phys:   0x%08x\n",
+            swicth_endian(fdt_header->boot_cpuid_phys));
+    cprintf("fdt_size_dt_strings:   0x%08x\n",
+            swicth_endian(fdt_header->size_dt_strings));
+    cprintf("fdt_size_dt_struct:    0x%08x\n",
+            swicth_endian(fdt_header->size_dt_struct));
+
+    // Walk through the flattend device tree and print it out.
+    // Comment this to `make grade`.
+    walk_print_device_tree(fdt_header);
+
+    // Clean up the page table
+    boot_page_table_sv39[2] = 0;
+
     // grade_backtrace();
+    idt_init();  // init interrupt descriptor table
+
+    pmm_init();  // init physical memory management
 
     idt_init();  // init interrupt descriptor table
 
-    // rdtime in mbare mode crashes
     clock_init();  // init clock interrupt
 
     intr_enable();  // enable irq interrupt
-    
-    while (1) {}
+
+    /* do nothing */
+    while (1)
+        ;
 }
 
 void __attribute__((noinline))
-grade_backtrace2(unsigned long long arg0, unsigned long long arg1, unsigned long long arg2, unsigned long long arg3) {
+grade_backtrace2(int arg0, int arg1, int arg2, int arg3) {
     mon_backtrace(0, NULL, NULL);
 }
 
 void __attribute__((noinline)) grade_backtrace1(int arg0, int arg1) {
-    grade_backtrace2(arg0, (unsigned long long)&arg0, arg1, (unsigned long long)&arg1);
+    grade_backtrace2(arg0, (uintptr_t)&arg0, arg1, (uintptr_t)&arg1);
 }
 
 void __attribute__((noinline)) grade_backtrace0(int arg0, int arg1, int arg2) {
     grade_backtrace1(arg0, arg2);
 }
 
-void grade_backtrace(void) { grade_backtrace0(0, (unsigned long long)kern_init, 0xffff0000); }
+void grade_backtrace(void) {
+    grade_backtrace0(0, (uintptr_t)kern_init, 0xffff0000);
+}
 
 static void lab1_print_cur_status(void) {
     static int round = 0;
     round++;
 }
-
-
-
