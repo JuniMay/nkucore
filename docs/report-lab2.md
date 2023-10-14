@@ -211,3 +211,7 @@ int kern_init(uint32_t hartid, uintptr_t dtb_pa);
 [^2]: [设备树规范](https://devicetree-specification.readthedocs.io/en/stable/index.html)
 
 使用这一方法便可以读取可用物理内存的范围。
+
+## 实验知识点
+
+实验中涉及了虚拟页表的建立和使用，并且进行了物理内存管理，实验中实现的页表管理机制是 RISC-V 中的 SV39 页表机制，除此之外，RISC-V 还有包括 SV48，SV57 在内的页表机制，实验中并没有实现。此外，理论课上还涉及了 x86 系统的页表管理机制但是并没有实现。
