@@ -15,7 +15,7 @@
 #define PMM_BUDDY_SYSTEM 2
 #define PMM_SLOB_ALLOCATOR 3
 
-#define PMM_MANAGER PMM_FIRST_FIT
+#define PMM_MANAGER PMM_BEST_FIT
 
 #if PMM_MANAGER == PMM_FIRST_FIT
 #include <default_pmm.h>

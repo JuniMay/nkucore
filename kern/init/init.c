@@ -13,6 +13,8 @@
 int kern_init(uint32_t hartid, uintptr_t dtb_pa) __attribute__((noreturn));
 void grade_backtrace(void);
 
+extern char boot_page_table_sv39[];
+
 int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
     extern char edata[], end[];
 
@@ -57,6 +59,9 @@ int kern_init(uint32_t hartid, uintptr_t dtb_pa) {
     // Walk through the flattend device tree and print it out.
     // Comment this to `make grade`.
     walk_print_device_tree(fdt_header);
+
+    // Clean up the page table
+    boot_page_table_sv39[2] = 0;
 
     // grade_backtrace();
     idt_init();  // init interrupt descriptor table

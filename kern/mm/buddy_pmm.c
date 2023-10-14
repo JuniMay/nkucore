@@ -271,9 +271,9 @@ static size_t buddy_nr_free_pages(void) {
     return total_cnt;
 }
 
-static void buddy_check_0() {
+static void buddy_check_0(void) {
 
-#define ALLOC_PAGE_NUM 1036
+#define ALLOC_PAGE_NUM 100
 
     cprintf("[buddy_check_0] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
@@ -309,48 +309,62 @@ static void buddy_check_0() {
     cprintf("[buddy_check_0] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");       
 }
 
-static void buddy_check_1() {
+static void buddy_check_1(void) {
     cprintf("[buddy_check_1] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
-    struct Page* p0 = alloc_pages(512);
 
+    size_t initial_nr_free_pages = nr_free_pages();
+
+    cprintf("[buddy_check_0] before alloc:          ");
+    dbg_buddy();
+
+    struct Page* p0 = alloc_pages(512);
     assert(p0 != NULL);
     assert(p0->property == 512);
-
     cprintf("[buddy_check_1] after alloc 512 pages: ");
     dbg_buddy();
 
     struct Page* p1 = alloc_pages(513);
-
     assert(p1 != NULL);
     assert(p1->property == 1024);
-
     cprintf("[buddy_check_1] after alloc 513 pages: ");
     dbg_buddy();
 
     struct Page* p2 = alloc_pages(79);
-
     assert(p2 != NULL);
     assert(p2->property == 128);
-
     cprintf("[buddy_check_1] after alloc 79 pages:  ");
     dbg_buddy();
 
     struct Page* p3 = alloc_pages(37);
-
     assert(p3 != NULL);
     assert(p3->property == 64);
-
     cprintf("[buddy_check_1] after alloc 37 pages:  ");
     dbg_buddy();
 
+    struct Page* p4 = alloc_pages(3);
+    assert(p4 != NULL);
+    assert(p4->property == 4);
+    cprintf("[buddy_check_1] after alloc 3 pages:   ");
+    dbg_buddy();
+
+    struct Page* p5 = alloc_pages(196);
+    assert(p5 != NULL);
+    assert(p5->property == 256);
+    cprintf("[buddy_check_1] after alloc 196 pages: ");
+    dbg_buddy();
+
+    free_pages(p4, 3);
     free_pages(p0, 512);
     free_pages(p2, 79);
     free_pages(p3, 37);
+    free_pages(p5, 196);
     free_pages(p1, 513);
 
     cprintf("[buddy_check_1] after free:            ");
     dbg_buddy();
+
+    assert(nr_free_pages() == initial_nr_free_pages);
 
     cprintf("[buddy_check_1] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 }
