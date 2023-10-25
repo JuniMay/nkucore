@@ -6,7 +6,6 @@
 #include <defs.h>
 #include <memlayout.h>
 #include <mmu.h>
-#include <riscv.h>
 
 // pmm_manager is a physical memory management class. A special pmm manager -
 // XXX_pmm_manager
@@ -29,28 +28,30 @@ struct pmm_manager {
                                                       // descriptor
                                                       // structures(memlayout.h)
     size_t (*nr_free_pages)(void);  // return the number of free pages
-    void *(*alloc_bytes)(size_t n); // allocate >=n bytes, depend on the
-                                    // allocation algorithm
-    void (*free_bytes)(void *ptr, size_t n); // free >=n bytes with "ptr" addr
-                                             // of memory start
     void (*check)(void);            // check the correctness of XXX_pmm_manager
 };
 
 extern const struct pmm_manager *pmm_manager;
+extern pde_t *boot_pgdir;
+extern const size_t nbase;
+extern uintptr_t boot_cr3;
 
 void pmm_init(void);
 
 struct Page *alloc_pages(size_t n);
 void free_pages(struct Page *base, size_t n);
-size_t nr_free_pages(void); // number of free pages
-
-// byte level memory allocation/free
-void *alloc_bytes(size_t n); // alloc n byte memory
-void free_bytes(void *ptr, size_t n); // free n byte memory
-
+size_t nr_free_pages(void);
 
 #define alloc_page() alloc_pages(1)
 #define free_page(page) free_pages(page, 1)
+
+pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create);
+struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store);
+void page_remove(pde_t *pgdir, uintptr_t la);
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm);
+
+void tlb_invalidate(pde_t *pgdir, uintptr_t la);
+struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm);
 
 
 /* *
@@ -74,7 +75,6 @@ void free_bytes(void *ptr, size_t n); // free n byte memory
  * KADDR - takes a physical address and returns the corresponding kernel virtual
  * address. It panics if you pass an invalid physical address.
  * */
-/*
 #define KADDR(pa)                                                \
     ({                                                           \
         uintptr_t __m_pa = (pa);                                 \
@@ -84,11 +84,11 @@ void free_bytes(void *ptr, size_t n); // free n byte memory
         }                                                        \
         (void *)(__m_pa + va_pa_offset);                         \
     })
-*/
+
 extern struct Page *pages;
 extern size_t npage;
 extern const size_t nbase;
-extern uint64_t va_pa_offset;
+extern uint_t va_pa_offset;
 
 static inline ppn_t page2ppn(struct Page *page) { return page - pages + nbase; }
 
@@ -96,7 +96,27 @@ static inline uintptr_t page2pa(struct Page *page) {
     return page2ppn(page) << PGSHIFT;
 }
 
+static inline struct Page *pa2page(uintptr_t pa) {
+    if (PPN(pa) >= npage) {
+        panic("pa2page called with invalid pa");
+    }
+    return &pages[PPN(pa) - nbase];
+}
 
+static inline void *page2kva(struct Page *page) { return KADDR(page2pa(page)); }
+
+static inline struct Page *kva2page(void *kva) { return pa2page(PADDR(kva)); }
+
+static inline struct Page *pte2page(pte_t pte) {
+    if (!(pte & PTE_V)) {
+        panic("pte2page called with invalid pte");
+    }
+    return pa2page(PTE_ADDR(pte));
+}
+
+static inline struct Page *pde2page(pde_t pde) {
+    return pa2page(PDE_ADDR(pde));
+}
 
 static inline int page_ref(struct Page *page) { return page->ref; }
 
@@ -111,13 +131,19 @@ static inline int page_ref_dec(struct Page *page) {
     page->ref -= 1;
     return page->ref;
 }
-static inline struct Page *pa2page(uintptr_t pa) {
-    if (PPN(pa) >= npage) {
-        panic("pa2page called with invalid pa");
-    }
-    return &pages[PPN(pa) - nbase];
+
+static inline void flush_tlb() { asm volatile("sfence.vma"); }
+
+// construct PTE from a page and permission bits
+static inline pte_t pte_create(uintptr_t ppn, int type) {
+    return (ppn << PTE_PPN_SHIFT) | PTE_V | type;
 }
-static inline void flush_tlb() { asm volatile("sfence.vm"); }
-extern char bootstack[], bootstacktop[]; // defined in entry.S
+
+static inline pte_t ptd_create(uintptr_t ppn) { return pte_create(ppn, PTE_V); }
+
+extern char bootstack[], bootstacktop[];
+
+extern void *kmalloc(size_t n);
+extern void kfree(void *ptr, size_t n);
 
 #endif /* !__KERN_MM_PMM_H__ */
