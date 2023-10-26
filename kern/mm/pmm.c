@@ -244,9 +244,9 @@ pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_U           0x004                   // page table/directory entry
      * flags bit : User can access
      */
-    pde_t *pdep1 = &pgdir[PDX1(la)];
-    if (!(*pdep1 & PTE_V)) {
-        struct Page *page;
+    pde_t *pdep1 = &pgdir[PDX1(la)]; // get corresponding gigapage table entry
+    if (!(*pdep1 & PTE_V)) {        // if this gigapage table entry is invalid
+        struct Page *page;         // then alloc a page for this gigapage table
         if (!create || (page = alloc_page()) == NULL) {
             return NULL;
         }
@@ -309,15 +309,14 @@ static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
      *   PTE_P           0x001                   // page table/directory entry
      * flags bit : Present
      */
-    if (*ptep & PTE_V) {  //(1) check if this page table entry is
-        struct Page *page =
-            pte2page(*ptep);  //(2) find corresponding page to pte
+    if (*ptep & PTE_V) {  //(1) check if this page table entry is valid
+        struct Page *page = pte2page(*ptep);  //(2) find corresponding page to pte
         page_ref_dec(page);   //(3) decrease page reference
-        if (page_ref(page) ==
-            0) {  //(4) and free this page when page reference reachs 0
+        if (page_ref(page) == 0) {  
+            //(4) and free this page when page reference reachs 0
             free_page(page);
         }
-        *ptep = 0;                  //(5) clear second page table entry
+        *ptep = 0;                  //(5) clear page table entry
         tlb_invalidate(pgdir, la);  //(6) flush tlb
     }
 }
@@ -333,7 +332,7 @@ void page_remove(pde_t *pgdir, uintptr_t la) {
 
 // page_insert - build the map of phy addr of an Page with the linear addr la
 // paramemters:
-//  pgdir: the kernel virtual base address of PDT
+//  pgdir: the kernel virtual base address of PDT (satp)
 //  page:  the Page which need to map
 //  la:    the linear address need to map
 //  perm:  the permission of this Page which is setted in related pte
@@ -391,13 +390,15 @@ static void check_alloc_page(void) {
     cprintf("check_alloc_page() succeeded!\n");
 }
 
+// 
 static void check_pgdir(void) {
     // assert(npage <= KMEMSIZE / PGSIZE);
     // The memory starts at 2GB in RISC-V
     // so npage is always larger than KMEMSIZE / PGSIZE
+
     size_t nr_free_store;
 
-    nr_free_store=nr_free_pages();
+    nr_free_store = nr_free_pages();
 
     assert(npage <= KERNTOP / PGSIZE);
     assert(boot_pgdir != NULL && (uint32_t)PGOFF(boot_pgdir) == 0);
@@ -405,15 +406,16 @@ static void check_pgdir(void) {
 
     struct Page *p1, *p2;
     p1 = alloc_page();
-    assert(page_insert(boot_pgdir, p1, 0x0, 0) == 0);
+    assert(page_insert(boot_pgdir, p1, 0x0, 0) == 0); // map to VA 0x0
     pte_t *ptep;
-    assert((ptep = get_pte(boot_pgdir, 0x0, 0)) != NULL);
+    assert((ptep = get_pte(boot_pgdir, 0x0, 0)) != NULL); // pte is not NULL
     assert(pte2page(*ptep) == p1);
     assert(page_ref(p1) == 1);
 
-    ptep = (pte_t *)KADDR(PDE_ADDR(boot_pgdir[0]));
+    // ???????????????????????
+    ptep = (pte_t *)KADDR(PDE_ADDR(boot_pgdir[0])); 
     ptep = (pte_t *)KADDR(PDE_ADDR(ptep[0])) + 1;
-    assert(get_pte(boot_pgdir, PGSIZE, 0) == ptep);
+    assert(get_pte(boot_pgdir, PGSIZE, 0) == ptep); 
 
     p2 = alloc_page();
     assert(page_insert(boot_pgdir, p2, PGSIZE, PTE_U | PTE_W) == 0);

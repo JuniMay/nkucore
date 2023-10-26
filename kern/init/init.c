@@ -18,7 +18,7 @@ void grade_backtrace(void);
 
 int
 kern_init(void) {
-    extern char edata[], end[], boot_page_table_sv39[];
+    extern char edata[], end[];
     memset(edata, 0, end - edata);
 
     const char *message = "(NKU.osLoongTea) os is loading ...";
@@ -26,7 +26,7 @@ kern_init(void) {
 
     print_kerninfo();
 
-    ((int64_t*)boot_page_table_sv39)[2] = 0;
+    // ((int64_t*)boot_page_table_sv39)[2] = 0;
 
     // grade_backtrace();
 

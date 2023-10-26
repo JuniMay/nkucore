@@ -103,7 +103,8 @@ static inline struct Page *pa2page(uintptr_t pa) {
     return &pages[PPN(pa) - nbase];
 }
 
-static inline void *page2kva(struct Page *page) { return KADDR(page2pa(page)); }
+// returns kernel virtual address (actually same as virtual address except it checks whether the address is in kernel space)
+static inline void *page2kva(struct Page *page) { return KADDR(page2pa(page)); } 
 
 static inline struct Page *kva2page(void *kva) { return pa2page(PADDR(kva)); }
 

@@ -20,7 +20,7 @@ extern size_t max_swap_offset;
 
 /* *
  * swap_offset - takes a swap_entry (saved in pte), and returns
- * the corresponding offset in swap mem_map.
+ * the corresponding offset in swap mem_map. (in pages)
  * */
 #define swap_offset(entry) ({                                       \
                size_t __offset = (entry >> 8);                        \

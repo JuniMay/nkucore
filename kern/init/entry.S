@@ -48,12 +48,7 @@ bootstacktop:
     .global boot_page_table_sv39
 # 分配 4KiB 内存给预设的三级页表
 boot_page_table_sv39:
-    .zero 8 * 2
-    # 0x00000000_80000000 map to 0x80000000 (1G)
-    # 设置最后一个页表项，PPN=0x80000，标志位 VRWXAD 均为 1
-    .quad (0x80000 << 10) | 0xcf # VRWXAD
-    
-    .zero 8 * 508
+    .zero 8 * 511
     # 0xffffffff_c0000000 map to 0x80000000 (1G)
     # 设置最后一个页表项，PPN=0x80000，标志位 VRWXAD 均为 1
     .quad (0x80000 << 10) | 0xcf # VRWXAD

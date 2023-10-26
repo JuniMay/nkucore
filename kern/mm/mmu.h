@@ -50,8 +50,10 @@
 // construct linear address from indexes and offset
 #define PGADDR(d1, d0, t, o) ((uintptr_t)((d1) << PDX1SHIFT | (d0) << PDX0SHIFT | (t) << PTXSHIFT | (o)))
 
-// address in page table or page directory entry
+// convert page table entry to physical address
 #define PTE_ADDR(pte)   (((uintptr_t)(pte) & ~0x3FF) << (PTXSHIFT - PTE_PPN_SHIFT))
+
+// convert page directory entry to physical address (same as PTE_ADDR, treat a pde as a pte)
 #define PDE_ADDR(pde)   PTE_ADDR(pde)
 
 /* page directory and page table constants */
@@ -66,7 +68,7 @@
 #define PTXSHIFT        12                      // offset of PTX in a linear address
 #define PDX0SHIFT       21                      // offset of PDX0 in a linear address
 #define PDX1SHIFT       30                      // offset of PDX0 in a linear address
-#define PTE_PPN_SHIFT   10                      // offset of PPN in a physical address
+#define PTE_PPN_SHIFT   10                      // offset of PPN in a page table entry
 
 // page table entry (PTE) fields
 #define PTE_V     0x001 // Valid
