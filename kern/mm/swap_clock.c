@@ -87,6 +87,7 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tic
         struct Page *p = le2page(curr_ptr, pra_page_link);
         if (p->visited == 0) {
             *ptr_page = p;
+            cprintf("curr_ptr %p\n",curr_ptr);
             curr_ptr = list_prev(curr_ptr);
             list_del(list_next(curr_ptr));
             break;
