@@ -406,8 +406,20 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             //map of phy addr <--->
             //logical addr
             //(3) make the page swappable.
-            swap_in(mm, addr, &page);
-            page_insert(mm->pgdir, page, addr, perm);
+            int r = swap_in(mm, addr, &page);
+            
+            if (r != 0) {
+                cprintf("swap_in in do_pgfault failed\n");
+                goto failed;
+            }
+
+            r = page_insert(mm->pgdir, page, addr, perm);
+
+            if (r != 0) {
+                cprintf("page_insert in do_pgfault failed\n");
+                goto failed;
+            }
+
             swap_map_swappable(mm, addr, page, 1);
             page->pra_vaddr = addr;
         } else {
