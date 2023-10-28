@@ -57,7 +57,7 @@ _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, in
     // link the most recent arrival page at the back of the pra_list_head qeueue.
     // 将页面page插入到页面链表pra_list_head的末尾
     // 将页面的visited标志置为1，表示该页面已被访问
-    list_add(mm->sm_priv, entry);
+    list_add_before(mm->sm_priv, entry);
     page->visited = 1;
     return 0;
 }
@@ -82,18 +82,18 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tic
         // 如果当前页面未被访问，则将该页面从页面链表中删除，并将该页面指针赋值给ptr_page作为换出页面
         // 如果当前页面已被访问，则将visited标志置为0，表示该页面已被重新访问
         if (curr_ptr == &pra_list_head) {
-            curr_ptr = list_prev(curr_ptr);
+            curr_ptr = list_next(curr_ptr);
         }
         struct Page *p = le2page(curr_ptr, pra_page_link);
         if (p->visited == 0) {
             *ptr_page = p;
             cprintf("curr_ptr %p\n",curr_ptr);
-            curr_ptr = list_prev(curr_ptr);
-            list_del(list_next(curr_ptr));
+            curr_ptr = list_next(curr_ptr);
+            list_del(list_prev(curr_ptr));
             break;
         } else {
             p->visited = 0;
-            curr_ptr = list_prev(curr_ptr);
+            curr_ptr = list_next(curr_ptr);
         }
     }
     return 0;
