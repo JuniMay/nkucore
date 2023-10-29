@@ -13,24 +13,12 @@ kern_entry:
     # t0 >>= 12，变为三级页表的物理页号
     srli    t0, t0, 12
 
-    # Using stvec csr is too tricky and not recommended.
-    # # physical address of __kern_entry_after
-    # la t2, __kern_entry_after
-    # # virtual address
-    # add t2, t2, t1
-    # # set stvec so that a trap can let pc jump to __kern_entry_after
-    # csrw stvec, t2
-
     # t1 := 8 << 60，设置 satp 的 MODE 字段为 Sv39
     li      t1, 8 << 60
     # 将刚才计算出的预设三级页表物理页号附加到 satp 中
     or      t0, t0, t1
     # 将算出的 t0(即新的MODE|页表基址物理页号) 覆盖到 satp 中
     csrw    satp, t0
-
-#     # lowest two bits of stvec should be set to 0b00
-#     .align 2
-# __kern_entry_after:
     # 使用 sfence.vma 指令刷新 TLB
     sfence.vma
     # 从此，我们给内核搭建出了一个完美的虚拟内存空间！
@@ -60,12 +48,7 @@ bootstacktop:
     .global boot_page_table_sv39
 # 分配 4KiB 内存给预设的三级页表
 boot_page_table_sv39:
-    .zero 8 * 2
-    # 0x00000000_80000000 map to 0x80000000 (1G)
-    # 设置最后一个页表项，PPN=0x80000，标志位 VRWXAD 均为 1
-    .quad (0x80000 << 10) | 0xcf # VRWXAD
-    
-    .zero 8 * 508
+    .zero 8 * 511
     # 0xffffffff_c0000000 map to 0x80000000 (1G)
     # 设置最后一个页表项，PPN=0x80000，标志位 VRWXAD 均为 1
     .quad (0x80000 << 10) | 0xcf # VRWXAD

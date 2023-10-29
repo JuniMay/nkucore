@@ -142,7 +142,7 @@ run_qemu() {
 
     t0=$(get_time)
     (
-        
+
         ulimit -t $timeout
         exec $qemu -nographic $qemuopts -serial file:$qemu_out -monitor null -no-reboot $qemuextra
     ) > $out 2> $err &
@@ -324,23 +324,23 @@ osimg=$(make_print ucoreimg)
 swapimg=$(make_print swapimg)
 
 ## set default qemu-options
-# qemuopts="-hda $osimg"
+# qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 qemuopts="-machine virt -nographic -bios default -device loader,file=bin/ucore.img,addr=0x80200000"
 ## set break-function, default is readline
 brkfun=readline
 
 ## check now!!
 
-# quick_run 'Check PMM'
+# quick_run 'Check SWAP'
 
-# pts=20
+# pts=5
 # quick_check 'check pmm'                                         \
-#     'memory management: default_pmm_manager'                     \
+#     'memory management: default_pmm_manager'                      \
 #     'check_alloc_page() succeeded!'                             \
 #     'check_pgdir() succeeded!'                                  \
 #     'check_boot_pgdir() succeeded!'
 
-# pts=20
+# pts=5
 # quick_check 'check page table'                                  \
 #     'PDE(0e0) c0000000-f8000000 38000000 urw'                   \
 #     '  |-- PTE(38000) c0000000-f8000000 38000000 -rw'           \
@@ -349,6 +349,27 @@ brkfun=readline
 #     '  |-- PTE(00001) fafeb000-fafec000 00001000 -rw'
 
 # pts=10
+# quick_check 'check vmm'                                         \
+#     'check_vma_struct() succeeded!'                             \
+#     'page fault at 0x00000100: K/W [no page found].'            \
+#     'check_pgfault() succeeded!'                                \
+#     'check_vmm() succeeded.'
+
+# pts=20
+# quick_check 'check swap page fault'                             \
+#     'page fault at 0x00001000: K/W [no page found].'            \
+#     'page fault at 0x00002000: K/W [no page found].'            \
+#     'page fault at 0x00003000: K/W [no page found].'            \
+#     'page fault at 0x00004000: K/W [no page found].'            \
+#     'write Virt Page e in fifo_check_swap'			\
+#     'page fault at 0x00005000: K/W [no page found].'		\
+#     'page fault at 0x00001000: K/W [no page found]'		\
+#     'page fault at 0x00002000: K/W [no page found].'		\
+#     'page fault at 0x00003000: K/W [no page found].'		\
+#     'page fault at 0x00004000: K/W [no page found].'		\
+#     'check_swap() succeeded!'
+
+# pts=5
 # quick_check 'check ticks'                                       \
 #     '++ setup timer interrupts'                                 \
 #     '100 ticks'                                                 \
@@ -358,22 +379,55 @@ echo "<<<<<<<<<<<<<<< here_run_qemu <<<<<<<<<<<<<<<<<<"
 run_qemu
 echo "<<<<<<<<<<<<<<< here_run_check <<<<<<<<<<<<<<<<<<"
 
-pts=5
-quick_check 'check physical_memory_map_information'                                         \
-    'memory management: best_fit_pmm_manager'                     \
-    '  memory: 0x0000000007e00000, [0x0000000080200000, 0x0000000087ffffff].'                                  \
+pts=10
+quick_check 'check pmm'                                                 \
+    'memory management: default_pmm_manager'                            \
+    'membegin 80200000 memend 88000000 mem_size 7e00000'                \
+    'physcial memory map:'                                              \
+    '  memory: 0x07e00000, [0x80200000, 0x87ffffff].'                   \
+    'check_alloc_page() succeeded!'                                     \
+    'check_pgdir() succeeded!'                                          \
+    'check_boot_pgdir() succeeded!'                                     \
+    'check_vma_struct() succeeded!'                                     \
+
+pts=10
+quick_check 'check vmm'                                                 \
+    'check_pgfault() succeeded!'                                        \
+    'check_vmm() succeeded.'                                            \
+    'BEGIN check_swap: count 2, total 31661'                            \
 
 pts=20
-quick_check 'check_best_fit'                                       \
-    'check_alloc_page() succeeded!'                                  \
-    'satp virtual address: 0xffffffffc0205000'                       \
-    'satp physical address: 0x0000000080205000'                      \
+quick_check 'check swap page fault'                                     \
+    'setup Page Table for vaddr 0X1000, so alloc a page'                \
+    'setup Page Table vaddr 0~4MB OVER!'                                \
+    'set up init env for check_swap begin!'                             \
+    'Store/AMO page fault'                                              \
+    'page fault at 0x00001000: K/W'                                     \
+    'Store/AMO page fault'                                              \
+    'page fault at 0x00002000: K/W'                                     \
+    'Store/AMO page fault'                                              \
+    'page fault at 0x00003000: K/W'                                     \
+    'Store/AMO page fault'                                              \
+    'page fault at 0x00004000: K/W'                                     \
+    'set up init env for check_swap over!'                              \
+    'Store/AMO page fault'                                              \
+    'page fault at 0x00005000: K/W'                                     \
+    'curr_ptr 0xffffffffc02258a8'                                       \
+    'curr_ptr 0xffffffffc02258a8'                                       \
+    'swap_out: i 0, store page in vaddr 0x1000 to disk swap entry 2'    \
+    'Load page fault'                                                   \
+    'page fault at 0x00001000: K/R'                                     \
+    'curr_ptr 0xffffffffc02258f0'                                       \
+    'curr_ptr 0xffffffffc02258f0'                                       \
+    'swap_out: i 0, store page in vaddr 0x2000 to disk swap entry 3'    \
+    'swap_in: load disk swap entry 2 with swap_page in vadr 0x1000'     \
+    'count is 1, total is 8'                                            \
+    'check_swap() succeeded!'                                           \
 
 pts=5
-quick_check 'check ticks'                                       \
-    '++ setup timer interrupts'                                 \
-    '100 ticks'                                                 \
+quick_check 'check ticks'                                               \
+    '++ setup timer interrupts'                                         \
+    '100 ticks'                                                         \
 
 ## print final-score
 show_final
-
