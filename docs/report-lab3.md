@@ -17,7 +17,7 @@
 2. `get_pte`：根据触发缺页异常的虚拟地址查找其对应的多集页表叶节点的页表项。如果其中某一级页表不存在则为其分配一个新的页（4KiB）用于存储映射关系。
 3. `swap_in`：将对应的页面根据存储在页表项位置的 `swap_entry_t` 从“硬盘”中读取页面内容，并且重新写入页面的内存区域。
 4. `alloc_page`/`alloc_pages`：前者为后者的一个宏，会分配一个页面，如果不能分配则使用 `swap_out` 换出所需的页面数量。
-5. `page_insert`：将虚拟地址和新分配的页面的物理地址在页表内建议一个映射。
+5. `page_insert`：将虚拟地址和新分配的页面的物理地址在页表内建立一个映射。
 6. `swap_map_swappable`：在使用 FIFO 页面替换算法时会直接调用 `_fifo_map_swappable`，这会将新加入的页面存入 FIFO 算法所需要维护的队列（使用链表实现）的开头从而保证先进先出的实现。
 7. `swap_out`：根据需要换出的页面数量换出页面到“硬盘”中。
 8. `sm->swap_out_victim()`：在 FIFO 中会直接调用 `_fifo_swap_out_victim` 进行页面换出，这会将链表最后（最先进入的页面）指定为需要被换出的页面。
@@ -30,7 +30,7 @@
 
 RISC-V 中目前共有四种分页模式 Sv32，Sv39，Sv48，Sv57。其中 Sv32 使用了二级页表，Sv39 使用了三级页表，Sv48 和 Sv57 分别使用了四级和五级页表。
 
-`get_pte` 的目的是查找/创建特定线性地址对应的页表项。由于 ucore 使用 Sv39 的分页机制，所以共使用了三级页表，`get_pte` 中的两段相似的代码分别对应于在第三、第二级页表（页表目录）的查找/创建过程。首先 `get_pte` 函数接收一个参数 `create` 标识是否要分配新页。之后首先通过 `PDX1` 宏获取线性地址 `la` 对应的第一级 `VPN2` 的值，并且在 `pgdir` 即根页表（页目录）中找到对应的地址，并且判断其 `V` 标志位是否为真（表示可用）。若可用则继续寻找下一级目录，若不可用则根据 `create` 或 `alloc_page()` 的结果设置这一级页表的页表项，包括页面的引用以及下一级页表的页号的对应关系。之后再对下一级页表进行同样的操作，其中通过 `PDE_ADDR` 得到页表项对应的物理地址。最后根据得到的 `pdep0` 的页表项找到最低一级页表项的内容并且返回。
+`get_pte` 的目的是查找/创建特定线性地址对应的页表项。由于 ucore 使用 Sv39 的分页机制，所以共使用了三级页表，`get_pte` 中的两段相似的代码分别对应于在第一、第二级页表（PDX1，PDX2）的查找/创建过程。首先 `get_pte` 函数接收一个参数 `create` 标识未找到时是否要分配新页表项。之后首先通过 `PDX1` 宏获取线性地址 `la` 对应的第一级 `VPN2` 的值，并且在 `pgdir` 即根页表（页目录）中找到对应的地址，并且判断其 `V` 标志位是否为真（表示可用）。若可用则继续寻找下一级目录，若不可用则根据 `create` 的值决定是否调用 `alloc_page()` 开辟一个新的下一级页表，之后设置这一级页表的页表项，页面的引用以及下一级页表的页号的对应关系。之后再对下一级页表进行同样的操作，其中通过 `PDE_ADDR` 得到页表项对应的物理地址。最后根据得到的 `pdep0` 的页表项找到最低一级页表项的内容并且返回。
 
 整个 `get_pte` 会对 Sv39 中的高两级页目录进行查找/创建以及初始化的操作，并且返回对应的最低一级页表项的内容。两段相似的代码分别对应了对不同级别 `VPN` 的操作。
 
@@ -109,9 +109,11 @@ ucore 中页替换算法利用了这个 RISC-V 特权级的约定。当一个页
 
 通过在页表项中的标记，可以在 `do_pgfault` 时正确决定是需要为一个地址重新分配页并且建立映射关系还是从“硬盘”中换入页面。
 
+在 sv39 中，页表项中的一些标记位和保留位（RSW）可以在页替换算法中用于实现一些功能。例如，A (Accessed) 可以表示一个页是否被访问（写或读）过，D (Dirty) 表示页是否被修改（写入）过，这两个标记位可以用于实现扩展的 Clock 页面置换算法。
+
 ### 缺页服务例程中的页访问异常
 
-当出现页访问异常时，硬件需要根据发生异常的类型设置 `scause` 寄存器，将产生异常的指令地址存入 `sepc` 寄存器，将访问的地址存入 `stval`，并且根据设置的 `stvec` 进入操作系统的异常处理过程。
+当出现页访问异常时，硬件需要根据发生异常的类型设置 `scause` 寄存器，将产生异常的指令地址存入 `sepc` 寄存器，将访问的地址存入 `stval`，并且根据设置的 `stvec` 进入操作系统的异常处理过程。之后再次调用操作系统的缺页服务例程进行缺页处理，从而陷入死循环。
 
 ### Page 与页目录项、页表项的对应关系
 
@@ -119,7 +121,61 @@ Sv39 分页机制下，每一个页表所占用的空间刚好为一个页的大
 
 ## Clock 页面替换算法
 
-目前实现的 Clock 页面替换算法主要借助 `page->visited` 这个成员变量进行处理，并且同时维护 `curr_ptr`。此外，对于 Clock 算法，使用 `pra_list_head` 来记录所有进入页面置换器管理的页面。初始化时，将 `curr_ptr` 设置为整个 `pra_list_head` 的开头。每一次 `map_swappable` 时则需要设置 `visited` 并且将对应的页面插入到链表中。由于使用了双向循环链表，所以当需要换出页面时，只要反向查找第一个 `visited` 为 0 的页面即可，同时逐个设置 `visited`。
+Clock 页面替换算法需要一个额外的 `curr_ptr` 指针来指向当前时钟指针的位置。
+
+初始化时，除了和 FIFO 算法一样初始化 `pra_list_head` 和 `mm->sm_priv` 之外，还需要将 `curr_ptr` 指向链表的开头。
+
+```c
+static int _clock_init_mm(struct mm_struct *mm) {     
+    list_init(&pra_list_head); // 初始化pra_list_head为空链表
+    curr_ptr = &pra_list_head; // 初始化curr_ptr指向链表开头
+    mm->sm_priv = &pra_list_head; // 将mm->sm_priv指向pra_list_head
+    return 0;
+}
+```
+
+每次 `map_swappable` 时，需要将新加入的页面插入到链表的开头，并且将页的 `visited` 设置为 1。
+
+```c
+static int _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in) {
+    list_entry_t *entry = &(page->pra_page_link);
+    assert(entry != NULL && curr_ptr != NULL);
+    list_add_before(mm->sm_priv, entry); // 将页面插入到链表尾
+    page->visited = 1; // 将页面的visited标志置为1
+    return 0;
+}
+```
+
+当需要换出页面时，需要从当前 `curr_ptr` 开始遍历链表，查找第一个 `visited` 为 0 的页面，将该页面从页面链表中删除并换出，同时将遇到 `visited` 为 1 的页面的 `visited` 设置为 0。
+
+```c
+static int _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick) {
+    list_entry_t *head=(list_entry_t*) mm->sm_priv;
+    assert(head != NULL);
+    assert(in_tick==0);
+    while (1) {
+        if (curr_ptr == &pra_list_head) { // 循环遍历链表，跳过头节点
+            curr_ptr = list_next(curr_ptr);
+        }
+        struct Page *p = le2page(curr_ptr, pra_page_link); // 获取当前页面对应的Page结构指针
+        if (p->visited == 0) { // 如果当前页面未被访问
+            *ptr_page = p; // 将该页面指针赋值给ptr_page作为换出页面
+            cprintf("curr_ptr %p\n",curr_ptr);
+            curr_ptr = list_next(curr_ptr);
+            list_del(list_prev(curr_ptr)); // 将该页面从页面链表中删除
+            break;
+        } else { // 如果当前页面已被访问
+            p->visited = 0;  // 将visited标志置为0，表示该页面已被重新访问
+            curr_ptr = list_next(curr_ptr); // 继续遍历
+        }
+    }
+    return 0;
+}
+```
+
+### 比较Clock页替换算法和FIFO算法的不同
+
+Clock 页面替换算法考虑了访问的情况，通过维护一个循环队列和一个指针，每次换出时寻找（近似）最早的未被访问的页面。而 FIFO 只是换出最早的页面。相比于 FIFO，它与 LRU 的思想更加接近，但是实现起来比 LRU 简单，并且开销更小。
 
 ## 页表映射方式
 

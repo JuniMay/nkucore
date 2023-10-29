@@ -12,7 +12,7 @@ struct mm_struct;
 // the virtual continuous memory area(vma), [vm_start, vm_end), 
 // addr belong to a vma means  vma.vm_start<= addr <vma.vm_end 
 struct vma_struct {
-    struct mm_struct *vm_mm; // the set of vma using the same PDT 
+    struct mm_struct *vm_mm; // parent mm of this vma
     uintptr_t vm_start;      // start addr of vma      
     uintptr_t vm_end;        // end addr of vma, not include the vm_end itself
     uint_t vm_flags;       // flags of vma
