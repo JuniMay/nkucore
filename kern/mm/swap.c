@@ -1,7 +1,6 @@
 #include <swap.h>
 #include <swapfs.h>
 #include <swap_fifo.h>
-#include <swap_clock.h>
 #include <stdio.h>
 #include <string.h>
 #include <memlayout.h>
@@ -28,20 +27,22 @@ unsigned int swap_in_seq_no[MAX_SEQ_NO],swap_out_seq_no[MAX_SEQ_NO];
 
 static void check_swap(void);
 
-list_entry_t pra_list_head;
-
 int
 swap_init(void)
 {
      swapfs_init();
 
+     // if (!(1024 <= max_swap_offset && max_swap_offset < MAX_SWAP_OFFSET_LIMIT))
+     // {
+     //      panic("bad max_swap_offset %08x.\n", max_swap_offset);
+     // }
      // Since the IDE is faked, it can only store 7 pages at most to pass the test
      if (!(7 <= max_swap_offset &&
         max_swap_offset < MAX_SWAP_OFFSET_LIMIT)) {
         panic("bad max_swap_offset %08x.\n", max_swap_offset);
      }
 
-     sm = &swap_manager_clock;//use first in first out Page Replacement Algorithm
+     sm = &swap_manager_fifo;
      int r = sm->init();
      
      if (r == 0)
@@ -99,7 +100,7 @@ swap_out(struct mm_struct *mm, int n, int in_tick)
 
           //cprintf("SWAP: choose victim page 0x%08x\n", page);
           
-          v = page->pra_vaddr; 
+          v=page->pra_vaddr; 
           pte_t *ptep = get_pte(mm->pgdir, v, 0);
           assert((*ptep & PTE_V) != 0);
 
@@ -256,7 +257,10 @@ check_swap(void)
      // now access the virt pages to test  page relpacement algorithm 
      ret=check_content_access();
      assert(ret==0);
-     
+
+     nr_free = nr_free_store;
+     free_list = free_list_store;
+
      //restore kernel mem env
      for (i=0;i<CHECK_VALID_PHY_PAGE_NUM;i++) {
          free_pages(check_rp[i],1);
@@ -265,18 +269,20 @@ check_swap(void)
      //free_page(pte2page(*temp_ptep));
      
      mm_destroy(mm);
-         
-     nr_free = nr_free_store;
-     free_list = free_list_store;
 
-     
+     pde_t *pd1=pgdir,*pd0=page2kva(pde2page(boot_pgdir[0]));
+     free_page(pde2page(pd0[0]));
+     free_page(pde2page(pd1[0]));
+     pgdir[0] = 0;
+     flush_tlb();
+
      le = &free_list;
      while ((le = list_next(le)) != &free_list) {
          struct Page *p = le2page(le, page_link);
          count --, total -= p->property;
      }
-     cprintf("count is %d, total is %d\n",count,total);
-     //assert(count == 0);
-     
+     assert(count==0);
+     assert(total==0);
+
      cprintf("check_swap() succeeded!\n");
 }
