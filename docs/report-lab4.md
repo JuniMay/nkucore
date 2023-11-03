@@ -82,11 +82,13 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 
     ret = proc->pid;
 
-		/* ... cleanup ... */
+    /* ... cleanup ... */
 }
 ```
 
-ucore 分配进程 pid 的代码位于 `get_pid` 函数。ucore 会为每一个 fork 得到的进程分配一个唯一的 pid。
+首先使用 `alloc_proc` 分配一个进程块，使用 `setup_kstack` 设置这个进程在内核栈上对应的空间（两个页）。之后将内存进行拷贝（此实验中没有实现），并且复制上下文。再之后由于会对全局的资源进行改动，所以先关闭中断，分配 pid，将进程块链入哈希表和进程链表。最后恢复中断，设置运行状态为 `PROC_RUNNABLE`，并且返回进程对应的 pid。
+
+ucore 分配进程 pid 的代码位于 `get_pid` 函数。注意到其中的 `last_pid` 和 `next_safe` 都是静态变量。ucore 会为每一个 fork 得到的进程分配一个唯一的 pid。`get_pid` 所做的工作可以总结为维护可用 pid 的上界 `next_safe`，从 `last_pid` 到 `next_safe`（开区间）能够保证为可用的 pid 号。如果没有找到这样的区间则不断在 `repeat` 中循环进行查找。
 
 ## `proc_run` 函数
 
