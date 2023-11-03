@@ -115,7 +115,7 @@ void proc_run(struct proc_struct *proc) {
 
 在本实验中，一共创建了两个内核线程，一个为 `idle` 另外一个为执行 `init_main` 的 `init` 线程。 
 
-## 中端开关的实现
+## 中断开关的实现
 
 首先 `local_intr_save` 会保存当前中断是否打开，`local_intr_restore` 时会根据保存的结果设置 `sstatus` 的 `SIE` 位从而实现开关中断的保存、关闭和重新开启。
 
