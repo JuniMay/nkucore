@@ -46,8 +46,7 @@ static struct proc_struct *alloc_proc(void) {
 编写的代码内容如下：
 
 ```c
-int
-do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
+int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     /* ... checks ... */
 
     proc = alloc_proc();
@@ -91,4 +90,32 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 ucore 分配进程 pid 的代码位于 `get_pid` 函数。注意到其中的 `last_pid` 和 `next_safe` 都是静态变量。ucore 会为每一个 fork 得到的进程分配一个唯一的 pid。`get_pid` 所做的工作可以总结为维护可用 pid 的上界 `next_safe`，从 `last_pid` 到 `next_safe`（开区间）能够保证为可用的 pid 号。如果没有找到这样的区间则不断在 `repeat` 中循环进行查找。
 
 ## `proc_run` 函数
+
+`proc_run` 的实现如下：
+
+```c
+void proc_run(struct proc_struct *proc) {
+    if (proc != current) {
+        bool intr_flag;
+        local_intr_save(intr_flag);
+
+        struct proc_struct *prev = current;
+        struct proc_struct *next = proc;
+
+        current = proc;
+        lcr3(proc->cr3);
+        switch_to(&(prev->context), &(next->context));
+
+        local_intr_restore(intr_flag);
+    }
+}
+```
+
+由于 `switch_to` 之后会跳转到 `trapret` 函数，而 `trapret` 会使用 `current->trap`，所以需要先记录，之后设置当前进程、页表地址并且切换上下文。由于此处在 `do_exit` 时会直接调用 `panic` 并且 `kmonitor` 中调用了 `sbi_shutdown` 所以操作系统在执行完 `init_main` 之后会直接关机。
+
+在本实验中，一共创建了两个内核线程，一个为 `idle` 另外一个为执行 `init_main` 的 `init` 线程。 
+
+## 中端开关的实现
+
+首先 `local_intr_save` 会保存当前中断是否打开，`local_intr_restore` 时会根据保存的结果设置 `sstatus` 的 `SIE` 位从而实现开关中断的保存、关闭和重新开启。
 
