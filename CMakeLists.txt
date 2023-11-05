@@ -1,24 +1,29 @@
 cmake_minimum_required(VERSION 3.17)
-project(lab4 C)
+project(lab5)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 
 include_directories(.)
+include_directories(boot)
 include_directories(kern)
 include_directories(kern/debug)
 include_directories(kern/driver)
 include_directories(kern/fs)
-include_directories(kern/init)
-include_directories(kern/libs)
 include_directories(kern/mm)
 include_directories(kern/process)
 include_directories(kern/schedule)
 include_directories(kern/sync)
+include_directories(kern/syscall)
 include_directories(kern/trap)
 include_directories(libs)
 include_directories(tools)
+include_directories(user)
+include_directories(user/libs)
 
-add_executable(lab4
+add_executable(lab5
+        boot/asm.h
+        boot/bootasm.S
+        boot/bootmain.c
         kern/debug/assert.h
         kern/debug/kdebug.c
         kern/debug/kdebug.h
@@ -62,6 +67,8 @@ add_executable(lab4
         kern/schedule/sched.c
         kern/schedule/sched.h
         kern/sync/sync.h
+        kern/syscall/syscall.c
+        kern/syscall/syscall.h
         kern/trap/trap.c
         kern/trap/trap.h
         libs/atomic.h
@@ -79,5 +86,28 @@ add_executable(lab4
         libs/stdlib.h
         libs/string.c
         libs/string.h
+        libs/unistd.h
         tools/sign.c
-        tools/vector.c)
+        tools/vector.c
+        user/libs/panic.c
+        user/libs/stdio.c
+        user/libs/syscall.c
+        user/libs/syscall.h
+        user/libs/ulib.c
+        user/libs/ulib.h
+        user/libs/umain.c
+        user/badarg.c
+        user/badsegment.c
+        user/divzero.c
+        user/exit.c
+        user/faultread.c
+        user/faultreadkernel.c
+        user/forktest.c
+        user/forktree.c
+        user/hello.c
+        user/pgdir.c
+        user/softint.c
+        user/spin.c
+        user/testbss.c
+        user/waitkill.c
+        user/yield.c)

@@ -3,7 +3,7 @@
 
 #ifndef __ASSEMBLER__
 #include <defs.h>
-#endif /* !__ASSEMBLER__ */
+#endif
 
 // A linear address 'la' has a three-part structure as follows:
 //
@@ -24,6 +24,16 @@
 // |       PPN[1]        |      PPN[0]     |Reserved|D|A|G|U|X|W|R|V|
 // +---------12----------+-----------------+--------+---------------+
 
+/*
+ * RV32Sv32 page table entry:
+ * | 31 10 | 9             7 | 6 | 5 | 4  1 | 0
+ *    PFN    reserved for SW   D   R   TYPE   V
+ *
+ * RV64Sv39 / RV64Sv48 page table entry:
+ * | 63           48 | 47 10 | 9             7 | 6 | 5 | 4  1 | 0
+ *   reserved for HW    PFN    reserved for SW   D   R   TYPE   V
+ */
+
 // page directory index
 #define PDX1(la) ((((uintptr_t)(la)) >> PDX1SHIFT) & 0x1FF)
 #define PDX0(la) ((((uintptr_t)(la)) >> PDX0SHIFT) & 0x1FF)
@@ -38,7 +48,7 @@
 #define PGOFF(la) (((uintptr_t)(la)) & 0xFFF)
 
 // construct linear address from indexes and offset
-#define PGADDR(d1, d0, t, o) ((uintptr_t)((d1) << PDX1SHIFT |(d0) << PDX0SHIFT | (t) << PTXSHIFT | (o)))
+#define PGADDR(d1, d0, t, o) ((uintptr_t)((d1) << PDX1SHIFT | (d0) << PDX0SHIFT | (t) << PTXSHIFT | (o)))
 
 // address in page table or page directory entry
 #define PTE_ADDR(pte)   (((uintptr_t)(pte) & ~0x3FF) << (PTXSHIFT - PTE_PPN_SHIFT))
@@ -52,6 +62,7 @@
 #define PGSHIFT         12                      // log2(PGSIZE)
 #define PTSIZE          (PGSIZE * NPTEENTRY)    // bytes mapped by a page directory entry
 #define PTSHIFT         21                      // log2(PTSIZE)
+#define PDSIZE          (PTSIZE * NPDEENTRY)    // bytes mapped by a page directory
 
 #define PTXSHIFT        12                      // offset of PTX in a linear address
 #define PDX0SHIFT       21                      // offset of PDX in a linear address
