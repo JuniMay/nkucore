@@ -12,9 +12,6 @@
 /* Represents true-or-false values */
 typedef int bool;
 
-#define true (1)
-#define false (0)
-
 /* Explicitly-sized versions of integer types */
 typedef char int8_t;
 typedef unsigned char uint8_t;
@@ -24,19 +21,19 @@ typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
+#if __riscv_xlen == 64
+  typedef uint64_t uint_t;
+  typedef int64_t sint_t;
+#elif __riscv_xlen == 32
+  typedef uint32_t uint_t;
+  typedef int32_t sint_t;
+#endif
 
 /* *
- * Pointers and addresses are 32 bits or 64 bits.
+ * Pointers and addresses are 32 bits long.
  * We use pointer types to represent addresses,
  * uintptr_t to represent the numerical values of addresses.
  * */
-#if __riscv_xlen == 64
-  typedef int64_t sint_t;
-  typedef uint64_t uint_t;
-#elif __riscv_xlen == 32
-  typedef int32_t sint_t;
-  typedef uint32_t uint_t;
-#endif
 typedef sint_t intptr_t;
 typedef uint_t uintptr_t;
 

@@ -9,3 +9,4 @@
 1. [Lab0.5 & Lab1](./docs/report-lab1.md)
 2. [Lab2](./docs/report-lab2.md)
 3. [Lab3](./docs/report-lab3.md)
+4. [Lab4](./docs/report-lab4.md)

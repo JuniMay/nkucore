@@ -3,8 +3,8 @@
 
 #include <mmu.h>
 
-#define SECTSIZE            512 // sector size
-#define PAGE_NSECT          (PGSIZE / SECTSIZE) // number of sectors per page
+#define SECTSIZE            512
+#define PAGE_NSECT          (PGSIZE / SECTSIZE)
 
 #define SWAP_DEV_NO         1
 

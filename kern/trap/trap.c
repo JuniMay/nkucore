@@ -5,12 +5,11 @@
 #include <kdebug.h>
 #include <memlayout.h>
 #include <mmu.h>
+#include <riscv.h>
 #include <stdio.h>
 #include <swap.h>
 #include <trap.h>
 #include <vmm.h>
-#include <riscv.h>
-#include <sbi.h>
 
 #define TICK_NUM 100
 
@@ -25,33 +24,12 @@ static void print_ticks() {
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S
  */
 void idt_init(void) {
-    /* LAB1 YOUR CODE : STEP 2 */
-    /* (1) Where are the entry addrs of each Interrupt Service Routine (ISR)?
-     *     All ISR's entry addrs are stored in __vectors. where is uintptr_t
-     * __vectors[] ?
-     *     __vectors[] is in kern/trap/vector.S which is produced by
-     * tools/vector.c
-     *     (try "make" command in lab1, then you will find vector.S in kern/trap
-     * DIR)
-     *     You can use  "extern uintptr_t __vectors[];" to define this extern
-     * variable which will be used later.
-     * (2) Now you should setup the entries of ISR in Interrupt Description
-     * Table (IDT).
-     *     Can you see idt[256] in this file? Yes, it's IDT! you can use SETGATE
-     * macro to setup each item of IDT
-     * (3) After setup the contents of IDT, you will let CPU know where is the
-     * IDT by using 'lidt' instruction.
-     *     You don't know the meaning of this instruction? just google it! and
-     * check the libs/x86.h to know more.
-     *     Notice: the argument of lidt is idt_pd. try to find it!
-     */
     extern void __alltraps(void);
     /* Set sscratch register to 0, indicating to exception vector that we are
      * presently executing in the kernel */
     write_csr(sscratch, 0);
     /* Set the exception vector address */
     write_csr(stvec, &__alltraps);
-    set_csr(sstatus, SSTATUS_SIE);
     /* Allow kernel to access user memory */
     set_csr(sstatus, SSTATUS_SUM);
 }
@@ -106,7 +84,7 @@ void print_regs(struct pushregs *gpr) {
 }
 
 static inline void print_pgfault(struct trapframe *tf) {
-    cprintf("page fault at 0x%08x: %c/%c\n", tf->badvaddr,
+    cprintf("page falut at 0x%08x: %c/%c\n", tf->badvaddr,
             trap_in_kernel(tf) ? 'K' : 'U',
             tf->cause == CAUSE_STORE_PAGE_FAULT ? 'W' : 'R');
 }
@@ -175,7 +153,6 @@ void interrupt_handler(struct trapframe *tf) {
             break;
     }
 }
-
 
 void exception_handler(struct trapframe *tf) {
     int ret;
