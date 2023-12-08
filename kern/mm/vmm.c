@@ -209,6 +209,7 @@ dup_mmap(struct mm_struct *to, struct mm_struct *from) {
     return 0;
 }
 
+// exit_mmap - free all vma & page table for a mm
 void
 exit_mmap(struct mm_struct *mm) {
     assert(mm != NULL && mm_count(mm) == 0);

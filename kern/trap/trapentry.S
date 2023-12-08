@@ -69,8 +69,8 @@ _save_context:
     LOCAL _save_kernel_sp
     LOCAL _restore_context
 
-    LOAD s1, 32*REGBYTES(sp)
-    LOAD s2, 33*REGBYTES(sp)
+    LOAD s1, 32*REGBYTES(sp) # status
+    LOAD s2, 33*REGBYTES(sp) # epc
 
     andi s0, s1, SSTATUS_SPP
     bnez s0, _restore_context
