@@ -354,7 +354,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
         // call get_pte to find process A's pte according to the addr start
         pte_t *ptep = get_pte(from, start, 0), *nptep;
         if (ptep == NULL) {
-            start = ROUNDDOWN(start + PTSIZE, PTSIZE);
+            start = ROUNDDOWN(start + PTSIZE, PTSIZE); 
             continue;
         }
         // call get_pte to find process B's pte according to the addr start. If
