@@ -65,6 +65,18 @@ kernel_execve() -> ebreak -> syscall() -> sys_exec() -> do_execve()
 使用 `set_proc_name` 函数设置进程的名称。
 
 ### wait
+`prco_init()` ->`kernel_thread()` -> `init_main()` -> `do_wait()`
+
+首先进行内存检查，确保 `code_store` 指向的内存区域可访问。遍历查找具有给定PID的子进程，若找到且该子进程的父进程是当前进程，将 haskid 标志设置为1。如果 pid 为零，将循环遍历当前父进程的所有子进程，查找已经退出的子进程。如果找到，跳转到标签 found。如果存在子进程，将当前进程的状态设置为 `PROC_SLEEPING`，等待状态设置为 `WT_CHILD`，然后调用调度器 `schedule()` 来选择新的可运行进程。如果当前进程被标记为`PF_EXITING`，则调用 `do_exit` 以处理退出,跳转到标签 repeat 继续执行。检查子进程是否是空闲进程 `idleproc`或初始化进程 `initproc`，如果是则触发 panic。存储子进程的退出状态，处理子进程退出并释放资源。
+
+### exit
+
+内核态：
+`kernel_execve()`-> `ebreak` -> `syscall()` -> `sys_exec()` -> `do_execve()` ->`execve_exit` ->`do_exit`
+
+`prco_init()` ->`kernel_thread()` -> `init_main()` -> `do_wait()` -> `do_exit`
+
+检查当前进程是否是idleproc或initproc，若是则`panic`，获取内存管理结构，减少对内存管理结构的引用计数，如果引用计数降为零，代表没有其他进程共享该内存管理结构，那么清理映射并释放页目录表，最后销毁内存管理结构。最后，将当前进程的 `mm` 指针设置为 `NULL`。将进程的状态设置为 `PROC_ZOMBIE`，表示进程已经退出。如果父进程正在等待子进程退出，则唤醒当前进程的父进程。然后，通过循环处理当前进程的所有子进程，将它们的状态设置为`PROC_ZOMBIE`，并将其重新连接到初始化进程的子进程链表上。如果初始化进程也正在等待子进程退出，那么也唤醒初始化进程。最后，进行调度。
 
 
 
