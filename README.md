@@ -10,3 +10,4 @@
 2. [Lab2](./docs/report-lab2.md)
 3. [Lab3](./docs/report-lab3.md)
 4. [Lab4](./docs/report-lab4.md)
+5. [Lab5](./docs/report-lab5.md)

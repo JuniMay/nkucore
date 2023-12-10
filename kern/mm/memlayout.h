@@ -20,10 +20,24 @@
  *                            |    Remapped Physical Memory     | RW/-- KMEMSIZE
  *                            |                                 |
  *     KERNBASE ------------> +---------------------------------+ 0xC0000000
+ *                            |        Invalid Memory (*)       | --/--
+ *     USERTOP -------------> +---------------------------------+ 0xB0000000
+ *                            |           User stack            |
+ *                            +---------------------------------+
  *                            |                                 |
- *                            |                                 |
+ *                            :                                 :
+ *                            |         ~~~~~~~~~~~~~~~~        |
+ *                            :                                 :
  *                            |                                 |
  *                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *                            |       User Program & Heap       |
+ *     UTEXT ---------------> +---------------------------------+ 0x00800000
+ *                            |        Invalid Memory (*)       | --/--
+ *                            |  - - - - - - - - - - - - - - -  |
+ *                            |    User STAB Data (optional)    |
+ *     USERBASE, USTAB------> +---------------------------------+ 0x00200000
+ *                            |        Invalid Memory (*)       | --/--
+ *     0 -------------------> +---------------------------------+ 0x00000000
  * (*) Note: The kernel ensures that "Invalid Memory" is *never* mapped.
  *     "Empty Memory" is normally unmapped, but user programs may map pages
  *     there if desired.
@@ -38,10 +52,30 @@
 #define KERNEL_BEGIN_PADDR 0x80200000
 #define KERNEL_BEGIN_VADDR 0xFFFFFFFFC0200000
 #define PHYSICAL_MEMORY_END 0x88000000
-
+/* *
+ * Virtual page table. Entry PDX[VPT] in the PD (Page Directory) contains
+ * a pointer to the page directory itself, thereby turning the PD into a page
+ * table, which maps all the PTEs (Page Table Entry) containing the page mappings
+ * for the entire virtual address space into that 4 Meg region starting at VPT.
+ * */
 
 #define KSTACKPAGE          2                           // # of pages in kernel stack
 #define KSTACKSIZE          (KSTACKPAGE * PGSIZE)       // sizeof kernel stack
+
+#define USERTOP             0x80000000
+#define USTACKTOP           USERTOP
+#define USTACKPAGE          256                         // # of pages in user stack
+#define USTACKSIZE          (USTACKPAGE * PGSIZE)       // sizeof user stack
+
+#define USERBASE            0x00200000
+#define UTEXT               0x00800000                  // where user programs generally begin
+#define USTAB               USERBASE                    // the location of the user STABS data structure
+
+#define USER_ACCESS(start, end)                     \
+(USERBASE <= (start) && (start) < (end) && (end) <= USERTOP)
+
+#define KERN_ACCESS(start, end)                     \
+(KERNBASE <= (start) && (start) < (end) && (end) <= KERNTOP)
 
 #ifndef __ASSEMBLER__
 
@@ -60,7 +94,7 @@ typedef pte_t swap_entry_t; //the pte can also be a swap entry
  * */
 struct Page {
     int ref;                        // page frame's reference counter
-    uint_t flags;                 // array of flags that describe the status of the page frame
+    uint64_t flags;                 // array of flags that describe the status of the page frame
     unsigned int property;          // the num of free block, used in first fit pm manager
     list_entry_t page_link;         // free list link
     list_entry_t pra_page_link;     // used for pra (page replace algorithm)
@@ -88,6 +122,8 @@ typedef struct {
     unsigned int nr_free;           // # of free pages in this free list
 } free_area_t;
 
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !__KERN_MM_MEMLAYOUT_H__ */
+
