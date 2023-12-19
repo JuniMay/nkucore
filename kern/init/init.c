@@ -13,9 +13,11 @@
 #include <swap.h>
 #include <proc.h>
 #include <kmonitor.h>
+#include <fs.h>
 
 int kern_init(void) __attribute__((noreturn));
 void grade_backtrace(void);
+static void lab1_switch_test(void);
 
 int
 kern_init(void) {
@@ -36,14 +38,16 @@ kern_init(void) {
     idt_init();                 // init interrupt descriptor table
 
     vmm_init();                 // init virtual memory management
+    sched_init();
     proc_init();                // init process table
     
     ide_init();                 // init ide devices
     swap_init();                // init swap
+    fs_init();
 
     clock_init();               // init clock interrupt
     intr_enable();              // enable irq interrupt
-    
+
     cpu_idle();                 // run idle process
 }
 
@@ -72,4 +76,6 @@ lab1_print_cur_status(void) {
     static int round = 0;
     round ++;
 }
+
+
 

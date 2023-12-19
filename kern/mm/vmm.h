@@ -5,7 +5,8 @@
 #include <list.h>
 #include <memlayout.h>
 #include <sync.h>
-
+#include <sem.h>
+#include <proc.h>
 //pre define
 struct mm_struct;
 
@@ -35,7 +36,8 @@ struct mm_struct {
     int map_count;                 // the count of these vma
     void *sm_priv;                 // the private data for swap manager
     int mm_count;                  // the number ofprocess which shared the mm
-    lock_t mm_lock;                // mutex for using dup_mmap fun to duplicat the mm
+    semaphore_t mm_sem; // mutex for using dup_mmap fun to duplicat the mm
+    int locked_by;
 };
 
 struct vma_struct *find_vma(struct mm_struct *mm, uintptr_t addr);
@@ -62,6 +64,7 @@ extern struct mm_struct *check_mm_struct;
 bool user_mem_check(struct mm_struct *mm, uintptr_t start, size_t len, bool write);
 bool copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable);
 bool copy_to_user(struct mm_struct *mm, void *dst, const void *src, size_t len);
+bool copy_string(struct mm_struct *mm, char *dst, const char *src, size_t maxn);
 
 static inline int
 mm_count(struct mm_struct *mm) {
@@ -88,14 +91,18 @@ mm_count_dec(struct mm_struct *mm) {
 static inline void
 lock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
-        lock(&(mm->mm_lock));
+        down(&(mm->mm_sem));
+        if (current != NULL) {
+            mm->locked_by = current->pid;
+        }
     }
 }
 
 static inline void
 unlock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
-        unlock(&(mm->mm_lock));
+        up(&(mm->mm_sem));
+        mm->locked_by = 0;
     }
 }
 

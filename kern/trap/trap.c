@@ -16,8 +16,9 @@
 #include <sched.h>
 #include <sync.h>
 #include <sbi.h>
+#include <proc.h>
 
-#define TICK_NUM 100
+#define TICK_NUM 2
 
 static void print_ticks() {
     cprintf("%d ticks\n",TICK_NUM);
@@ -146,10 +147,9 @@ void interrupt_handler(struct trapframe *tf) {
             // directly.
             // clear_csr(sip, SIP_STIP);
             clock_set_next_event();
-            if (++ticks % TICK_NUM == 0 && current) {
-                // print_ticks();
-                current->need_resched = 1;
-            }
+            ++ticks;
+            run_timer_list();
+            dev_stdin_write(cons_getc());
             break;
         case IRQ_H_TIMER:
             cprintf("Hypervisor software interrupt\n");
@@ -272,7 +272,6 @@ static inline void trap_dispatch(struct trapframe* tf) {
 void
 trap(struct trapframe *tf) {
     // dispatch based on what type of trap occurred
-//    cputs("some trap");
     if (current == NULL) {
         trap_dispatch(tf);
     } else {

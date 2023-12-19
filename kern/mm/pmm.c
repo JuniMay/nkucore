@@ -165,6 +165,62 @@ static void *boot_alloc_page(void) {
     return page2kva(p);
 }
 
+/**
+ * from transient boot pgdir switch to a new one and add some protection
+ * 1. switch pgdir
+ * 2. set refined permission(rx, rw...)
+ * 3. set previous transient boot pgdir and another dedicated page
+ *  as guard pages for kernel stack
+ */
+static void
+switch_kernel_memorylayout(){
+    /**
+     * Free intermediate here is uncessary because initially we use
+     * big-big-big page such that not intermediate page is occupied
+     */
+
+    // new page directory
+    pde_t *kern_pgdir = (pde_t *)boot_alloc_page();
+    memset(kern_pgdir,0,PGSIZE);
+
+    // insert kernel mappings
+    extern const char etext[];
+    uintptr_t retext = ROUNDUP((uintptr_t)etext,PGSIZE);
+    boot_map_segment(kern_pgdir,KERNBASE,retext-KERNBASE,PADDR(KERNBASE),PTE_R|PTE_X);
+    boot_map_segment(kern_pgdir,retext,KERNTOP-retext,PADDR(retext),PTE_R|PTE_W);
+
+    // perform switch
+    boot_pgdir = kern_pgdir;
+    boot_cr3 = PADDR(boot_pgdir);
+    lcr3(boot_cr3);
+    flush_tlb();
+    cprintf("Page table directory switch succeeded!\n");
+
+    /**
+     *  set up kernel stack guardian pages
+     */
+    extern char bootstackguard[],boot_page_table_sv39[];
+    if ((bootstackguard + PGSIZE == bootstack) && (bootstacktop == boot_page_table_sv39)){
+        // check writeable and set 0
+        memset(boot_page_table_sv39,0,PGSIZE);
+        bootstack[-1] = 0;
+        bootstack[-PGSIZE] = 0;
+
+        // set pages beneath and above the kernel stack as guardians
+        boot_map_segment(boot_pgdir,bootstackguard,PGSIZE,PADDR(bootstackguard),0);
+        boot_map_segment(boot_pgdir,boot_page_table_sv39,PGSIZE,PADDR(boot_page_table_sv39),0);
+        flush_tlb();
+
+        // the following four statements should all crash
+        // bootstack[-1] = 0;
+        // bootstack[-PGSIZE] = 0;
+        // bootstacktop[0] = 0;
+        // bootstacktop[PGSIZE-1] = 0;
+
+        cprintf("Kernel stack guardians set succeeded!\n");
+    }
+}
+
 // pmm_init - setup a pmm to manage physical memory, build PDT&PT to setup
 // paging mechanism
 //         - check the correctness of pmm & paging mechanism, print PDT&PT
@@ -187,10 +243,8 @@ void pmm_init(void) {
     // pmm
     check_alloc_page();
 
-    // create boot_pgdir, an initial page directory(Page Directory Table, PDT)
-    extern char boot_page_table_sv39[];
-    boot_pgdir = (pte_t*)boot_page_table_sv39;
-    boot_cr3 = PADDR(boot_pgdir);
+    // switch from transient boot page directory to refined kernel page directory
+    switch_kernel_memorylayout();
 
     check_pgdir();
 
@@ -212,6 +266,33 @@ void pmm_init(void) {
 //  create: a logical value to decide if alloc a page for PT
 // return vaule: the kernel virtual address of this pte
 pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
+    /* 
+     *
+     * If you need to visit a physical address, please use KADDR()
+     * please read pmm.h for useful macros
+     *
+     * Maybe you want help comment, BELOW comments can help you finish the code
+     *
+     * Some Useful MACROs and DEFINEs, you can use them in below implementation.
+     * MACROs or Functions:
+     *   PDX(la) = the index of page directory entry of VIRTUAL ADDRESS la.
+     *   KADDR(pa) : takes a physical address and returns the corresponding
+     * kernel virtual address.
+     *   set_page_ref(page,1) : means the page be referenced by one time
+     *   page2pa(page): get the physical address of memory which this (struct
+     * Page *) page  manages
+     *   struct Page * alloc_page() : allocation a page
+     *   memset(void *s, char c, size_t n) : sets the first n bytes of the
+     * memory area pointed by s
+     *                                       to the specified value c.
+     * DEFINEs:
+     *   PTE_P           0x001                   // page table/directory entry
+     * flags bit : Present
+     *   PTE_W           0x002                   // page table/directory entry
+     * flags bit : Writeable
+     *   PTE_U           0x004                   // page table/directory entry
+     * flags bit : User can access
+     */
     pde_t *pdep1 = &pgdir[PDX1(la)];
     if (!(*pdep1 & PTE_V)) {
         struct Page *page;
@@ -254,6 +335,27 @@ struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store) {
 //                - and clean(invalidate) pte which is related linear address la
 // note: PT is changed, so the TLB need to be invalidate
 static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
+    /*LAB2 EXERCISE 3: YOUR CODE
+     * Please check if ptep is valid, and tlb must be manually updated if
+     * mapping is updated
+     *
+     * Maybe you want help comment, BELOW comments can help you finish the code
+     *
+     * Some Useful MACROs and DEFINEs, you can use them in below implementation.
+     * MACROs or Functions:
+     *   struct Page *page pte2page(*ptep): get the according page from the
+     * value of a ptep
+     *   free_page : free a page
+     *   page_ref_dec(page) : decrease page->ref. NOTICE: ff page->ref == 0 ,
+     * then this page should be free.
+     *   tlb_invalidate(pde_t *pgdir, uintptr_t la) : Invalidate a TLB entry,
+     * but only if the page tables being
+     *                        edited are the ones currently in use by the
+     * processor.
+     * DEFINEs:
+     *   PTE_P           0x001                   // page table/directory entry
+     * flags bit : Present
+     */
     if (*ptep & PTE_V) {  //(1) check if this page table entry is
         struct Page *page =
             pte2page(*ptep);  //(2) find corresponding page to pte
@@ -284,7 +386,6 @@ void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     } while (start != 0 && start < end);
 }
 
-// free up a range of virtual memory pages
 void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
@@ -354,7 +455,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
         // call get_pte to find process A's pte according to the addr start
         pte_t *ptep = get_pte(from, start, 0), *nptep;
         if (ptep == NULL) {
-            start = ROUNDDOWN(start + PTSIZE, PTSIZE); 
+            start = ROUNDDOWN(start + PTSIZE, PTSIZE);
             continue;
         }
         // call get_pte to find process B's pte according to the addr start. If
@@ -389,11 +490,6 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
              * (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
              * (4) build the map of phy addr of  nage with the linear addr start
              */
-            void *src_kvaddr = page2kva(page);
-            void *dst_kvaddr = page2kva(npage);
-            memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
-            ret = page_insert(to, npage, start, perm);
-            
             assert(ret == 0);
         }
         start += PGSIZE;
